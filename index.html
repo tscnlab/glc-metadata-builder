@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GLC Metadata Builder POC</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Proof of concept</p>
+          <h1>GLC Metadata Builder</h1>
+        </div>
+        <div class="schema-pill">Schema 2.0.0</div>
+      </header>
+
+      <section class="workspace">
+        <aside class="progress-panel" aria-label="Builder steps">
+          <ol>
+            <li class="active">Describe dataset</li>
+            <li>Attach data file</li>
+            <li>Review variables</li>
+            <li>Export metadata</li>
+          </ol>
+        </aside>
+
+        <section class="builder-panel">
+          <form id="dataset-form">
+            <section class="form-section">
+              <div class="section-heading">
+                <span>1</span>
+                <div>
+                  <h2>Dataset record</h2>
+                  <p>Required top-level fields from `dataset.schema.json`.</p>
+                </div>
+              </div>
+
+              <div class="grid">
+                <label>
+                  Schema version <span class="required">*</span>
+                  <input id="schema-version" name="schema-version" type="text" value="2.0.0" required readonly />
+                </label>
+                <label>
+                  Dataset ID <span class="required">*</span>
+                  <input id="dataset-id" name="dataset-id" type="text" placeholder="Example: DS001" required />
+                </label>
+                <label>
+                  Study ID <span class="required">*</span>
+                  <input id="study-id" name="study-id" type="text" placeholder="Example: STUDY001" required />
+                </label>
+                <label>
+                  Participant ID <span class="required">*</span>
+                  <input id="participant-id" name="participant-id" type="text" placeholder="Example: P001" required />
+                </label>
+                <label>
+                  Device ID <span class="required">*</span>
+                  <input id="device-id" name="device-id" type="text" placeholder="Example: D001" required />
+                </label>
+                <label>
+                  Device location <span class="required">*</span>
+                  <input id="device-location" name="device-location" type="text" placeholder="Example: non-dominant wrist" required />
+                </label>
+                <label>
+                  Sampling interval <span class="required">*</span>
+                  <input id="sampling-interval" name="sampling-interval" type="number" min="0" step="any" placeholder="Example: 60" required />
+                </label>
+                <label>
+                  Dataset timezone <span class="required">*</span>
+                  <input id="dataset-timezone" name="dataset-timezone" type="text" placeholder="Example: Europe/Berlin" required />
+                </label>
+                <label>
+                  Dataset location: latitude <span class="required">*</span>
+                  <input id="latitude" name="latitude" type="text" placeholder="Example: 48.5216" required />
+                </label>
+                <label>
+                  Dataset location: longitude <span class="required">*</span>
+                  <input id="longitude" name="longitude" type="text" placeholder="Example: 9.0576" required />
+                </label>
+              </div>
+
+              <label>
+                Dataset instructions <span class="required">*</span>
+                <textarea id="instructions" name="instructions" rows="3" placeholder="Example: Wear device during waking hours and log non-wear periods."></textarea>
+              </label>
+            </section>
+
+            <section class="form-section">
+              <div class="section-heading">
+                <span>2</span>
+                <div>
+                  <h2>Dataset file assistant</h2>
+                  <p>Each file group describes one set of same-structure files for this participant.</p>
+                </div>
+              </div>
+
+              <div class="file-group-toolbar">
+                <div id="file-groups-list" class="file-groups-list"></div>
+                <button type="button" class="secondary-button" id="add-file-group">Add file group</button>
+              </div>
+
+              <div class="file-drop">
+                <input id="file-input" type="file" accept=".csv,.txt,.tsv" multiple />
+                <p id="file-summary">No file selected yet.</p>
+                <div id="file-warning" class="file-warning" hidden></div>
+              </div>
+
+              <div class="grid">
+                <label>
+                  File format <span class="required">*</span>
+                  <input id="file-format" type="text" placeholder="Example: csv" />
+                </label>
+                <label>
+                  Encoding <span class="required">*</span>
+                  <input id="encoding" type="text" placeholder="Example: UTF-8" />
+                </label>
+                <label>
+                  Header row
+                  <input id="header-row" type="number" min="1" placeholder="Example: 1" />
+                </label>
+                <label>
+                  File timezone <span class="required">*</span>
+                  <input id="file-timezone" type="text" placeholder="Example: Europe/Berlin" />
+                </label>
+                <label>
+                  Auxiliary file <span class="required">*</span>
+                  <select id="auxiliary">
+                    <option value="" selected>Select file role</option>
+                    <option value="false">No, primary dataset file</option>
+                    <option value="true">Yes, auxiliary file</option>
+                  </select>
+                </label>
+                <label>
+                  Preprocessing applied
+                  <select id="preprocessing-bol">
+                    <option value="" selected>Select preprocessing status</option>
+                    <option value="false">No</option>
+                    <option value="true">Yes</option>
+                  </select>
+                </label>
+                <label class="wide">
+                  Preprocessing description
+                  <textarea id="preprocessing-desc" rows="2" placeholder="Required if preprocessing was applied"></textarea>
+                </label>
+              </div>
+
+              <div class="file-group-terms">
+                <div>
+                  <h3>Variable terms for this file group</h3>
+                  <p>These terms populate the semantic-term dropdowns for variables in the active file group. `other` is always included.</p>
+                </div>
+                <div class="term-row term-header" aria-hidden="true">
+                  <span>Term token</span>
+                  <span>Human-readable label</span>
+                  <span>Action</span>
+                </div>
+                <div id="terms-list" class="terms-list"></div>
+                <button type="button" class="secondary-button" id="add-term">Add term</button>
+              </div>
+
+              <div class="datetime-card">
+                <div>
+                  <h3>Datetime for this file group</h3>
+                  <p>Use column metadata when the file contains date/time columns. If it does not, declare the collection date/time instead.</p>
+                </div>
+                <div class="grid">
+                  <label>
+                    Datetime source <span class="required">*</span>
+                    <select id="datetime-source">
+                      <option value="column" selected>Stored in file column(s)</option>
+                      <option value="collection">No datetime column; declare collection date/time</option>
+                    </select>
+                    <span class="field-help">Choose whether this file group has date/time columns or only a known collection date/time.</span>
+                  </label>
+                  <label>
+                    Collection date/time value
+                    <input id="collection-datetime" type="text" placeholder="Example: 2025-06-01" />
+                    <span class="field-help">Use this only when the file has no date/time column.</span>
+                  </label>
+                  <label>
+                    Date or datetime column
+                    <select id="datetime-date"></select>
+                    <span class="field-help">Column containing a full datetime, or the date column if date and time are separate.</span>
+                  </label>
+                  <label>
+                    Date/datetime format <span class="required">*</span>
+                    <input id="datetime-dateformat" type="text" placeholder="Example: YYYY-MM-DD HH:mm:ss" required />
+                    <span class="field-help">Format of the selected date or datetime value.</span>
+                  </label>
+                  <label>
+                    Separate time column
+                    <select id="datetime-time"></select>
+                    <span class="field-help">Only choose a column here if date and time are stored in two separate columns.</span>
+                  </label>
+                  <label>
+                    Time format
+                    <input id="datetime-timeformat" type="text" placeholder="Example: HH:mm:ss" />
+                    <span class="field-help">Use this to describe the separate time column format, for example HH:mm:ss.</span>
+                  </label>
+                </div>
+              </div>
+            </section>
+
+            <section class="form-section">
+              <div class="section-heading">
+                <span>3</span>
+                <div>
+                  <h2>Detected variables</h2>
+                  <p>Edit labels, units, calibration notes, semantic terms, and select primary variables.</p>
+                </div>
+              </div>
+
+              <div id="validation-summary" class="validation-summary">Select a file to detect columns.</div>
+              <div id="variables-table" class="variables-table" aria-live="polite"></div>
+            </section>
+
+            <section class="actions">
+              <button type="button" id="download-json" disabled>Download draft datasets.json</button>
+              <button type="button" id="copy-json" disabled>Copy JSON preview</button>
+            </section>
+          </form>
+        </section>
+
+        <aside class="preview-panel">
+          <div class="preview-heading">
+            <h2>JSON preview</h2>
+            <p>Updates after file detection.</p>
+          </div>
+          <pre id="json-preview">{}</pre>
+        </aside>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
