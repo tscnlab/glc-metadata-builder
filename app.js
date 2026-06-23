@@ -562,7 +562,7 @@ function buildDatasetFile(group) {
     dataset_file_variables: getVariableMetadata(group),
   };
 
-  if (group.auxiliary === false) {
+  if (group.auxiliary !== true) {
     datasetFile.primary_variables = getPrimaryVariables(group);
   }
 
