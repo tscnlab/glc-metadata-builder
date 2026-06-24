@@ -19,44 +19,287 @@
       <section class="workspace">
         <aside class="progress-panel" aria-label="Builder steps">
           <ol>
-            <li class="active">Describe dataset</li>
-            <li>Attach data file</li>
-            <li>Review variables</li>
-            <li>Export metadata</li>
+            <li class="active" data-step-link="project">Project setup</li>
+            <li data-step-link="study">Study</li>
+            <li data-step-link="participants">Participants</li>
+            <li data-step-link="devices">Devices</li>
+            <li data-step-link="datasheets">Datasheets</li>
+            <li data-step-link="datasets">Datasets</li>
+            <li data-step-link="export">Export package</li>
           </ol>
         </aside>
 
         <section class="builder-panel">
-          <form id="dataset-form">
-            <section class="form-section">
+          <form id="metadata-form">
+            <section class="form-section builder-step active" data-step="project">
               <div class="section-heading">
                 <span>1</span>
                 <div>
-                  <h2>Dataset record</h2>
-                  <p>Required top-level fields from `dataset.schema.json`.</p>
+                  <h2>Project setup</h2>
+                  <p>Choose the release version and package-level settings.</p>
                 </div>
               </div>
-
               <div class="grid">
                 <label>
                   Schema version <span class="required">*</span>
                   <input id="schema-version" name="schema-version" type="text" value="2.0.0" required readonly />
                 </label>
                 <label>
+                  Package name
+                  <input id="package-name" type="text" placeholder="Example: melidos-example-package" />
+                </label>
+                <label class="wide">
+                  Package title
+                  <input id="package-title" type="text" placeholder="Example: MeLiDos example GLC package" />
+                </label>
+              </div>
+              <div class="actions inline-actions">
+                <button type="button" data-next-step="study">Next: Study</button>
+              </div>
+            </section>
+
+            <section class="form-section builder-step" data-step="study">
+              <div class="section-heading">
+                <span>2</span>
+                <div>
+                  <h2>Study</h2>
+                  <p>Core fields from <code>study.schema.json</code>. Dataset IDs will be filled from the dataset step.</p>
+                </div>
+              </div>
+              <div class="file-drop compact-upload">
+                <input id="study-import" type="file" accept=".json,application/json" />
+                <p id="study-import-file" class="import-file-label" hidden></p>
+                <p id="study-import-summary">Optional: import an existing <code>study.json</code> to pre-fill this page.</p>
+              </div>
+              <div class="grid">
+                <label title="Unique identifier for study. Type: string.">
+                  Study internal ID <span class="required">*</span>
+                  <input id="study-internal-id" type="text" placeholder="Example: STUDY001" />
+                </label>
+                <label title="Study-level metadata. Type: string.">
+                  Study title <span class="required">*</span>
+                  <input id="study-title" type="text" placeholder="Example: Light exposure in daily life" />
+                </label>
+                <label title="DOI of pre-registration document describing data collection. Type: string or null.">
+                  Pre-registration
+                  <input id="study-preregistration" type="text" placeholder="Example: DOI or URL" />
+                </label>
+                <label title="Registry and ID of clinical trial registration. Type: string or null.">
+                  Registration
+                  <input id="study-registration" type="text" placeholder="Example: ClinicalTrials.gov NCT..." />
+                </label>
+                <label title="Name of ethics committee and approval number. Type: string or null.">
+                  Ethics
+                  <input id="study-ethics" type="text" placeholder="Example: Committee and approval number" />
+                </label>
+                <label title="Type of study. Type: string or null.">
+                  Study type
+                  <input id="study-type" type="text" placeholder="Example: observational field study" />
+                </label>
+                <label class="wide" title="Short narrative description of the study. Type: string.">
+                  Short description <span class="required">*</span>
+                  <textarea id="study-short-description" rows="2" placeholder="Brief narrative description of the study"></textarea>
+                </label>
+                <label title="Short description of the study sample. Type: string.">
+                  Study sample <span class="required">*</span>
+                  <input id="study-sample" type="text" placeholder="Example: Healthy adults aged 18-65" />
+                </label>
+                <label title="Description of the study setting. Type: string.">
+                  Study setting <span class="required">*</span>
+                  <input id="study-setting" type="text" placeholder="Example: Field study" />
+                </label>
+                <label title="Geographical location and context. Type: string.">
+                  Geographical location <span class="required">*</span>
+                  <input id="study-geographical-location" type="text" placeholder="Example: Berlin, Germany" />
+                </label>
+                <label class="wide" title="Short description of the study intervention, if any. Type: string or null.">
+                  Intervention
+                  <textarea id="study-intervention" rows="2" placeholder="Example: Light therapy protocol, or leave blank if not applicable"></textarea>
+                </label>
+                <label title="Funding sources supporting the project. Type: array of strings or null.">
+                  Funding sources
+                  <input id="study-funding-sources" type="text" placeholder="Comma-separated, e.g. Grant ABC123, Foundation XYZ" />
+                </label>
+                <label title="Key words describing the project. Type: array of strings or null.">
+                  Keywords
+                  <input id="study-keywords" type="text" placeholder="Comma-separated, e.g. light, sleep, wearable" />
+                </label>
+                <label class="wide" title="Dataset IDs are generated from the Datasets page. Type: array of strings.">
+                  Study datasets <span class="generated-badge">generated from Datasets page</span>
+                  <input id="study-datasets-preview" type="text" readonly placeholder="Dataset IDs will appear here after you add dataset records" />
+                </label>
+              </div>
+
+              <div class="subsection-heading">
+                <h3>Study groups</h3>
+                <p>Optional repeatable groups from <code>study_groups</code>. Inclusion and exclusion criteria can be separated with semicolons.</p>
+              </div>
+              <div class="table-builder">
+                <div id="study-groups-list"></div>
+                <button type="button" class="secondary-button" id="add-study-group">Add study group</button>
+              </div>
+
+              <div class="subsection-heading">
+                <h3>Study contributors</h3>
+                <p>Optional embedded contributors from <code>contributor.schema.json</code>. Add rows manually, or import a CSV/TSV/JSON file to fill the table.</p>
+              </div>
+              <div class="file-drop compact-upload">
+                <input id="contributors-import" type="file" accept=".csv,.tsv,.json,text/csv,text/tab-separated-values,application/json" />
+                <p id="contributors-import-file" class="import-file-label" hidden></p>
+                <p id="contributors-import-summary">
+                  Import replaces the contributor rows below. For CSV/TSV, use these column names:
+                  <code>contributor_full_name</code>,
+                  <code>contributor_roles</code>,
+                  <code>contributor_email</code>,
+                  <code>contributor_orcid</code>,
+                  <code>contributor_institution_name</code>,
+                  <code>contributor_institution_city</code>,
+                  <code>contributor_institution_country</code>.
+                  Roles can be separated with semicolons. JSON can be either <code>contributors.json</code> or <code>study.json</code> with <code>study_contributors</code>.
+                </p>
+                <button type="button" class="secondary-button small-button" id="clear-contributors-import">Remove imported contributor file</button>
+              </div>
+              <div class="table-builder contributor-builder">
+                <div id="contributors-list"></div>
+                <div class="row-actions">
+                  <button type="button" class="secondary-button" id="add-contributor">Add contributor</button>
+                  <button type="button" class="secondary-button danger-button" id="clear-all-contributors">Clear all contributor rows</button>
+                </div>
+              </div>
+
+              <div class="schema-actions bottom-schema-actions">
+                <span>Download schemas:</span>
+                <button type="button" class="secondary-button small-button" id="download-study-schema">Study</button>
+                <button type="button" class="secondary-button small-button" id="download-contributor-schema">Contributor</button>
+              </div>
+              <div class="actions inline-actions">
+                <button type="button" class="secondary-button" data-prev-step="project">Back</button>
+                <button type="button" class="secondary-button danger-button" id="clear-study-page">Clear Study page</button>
+                <button type="button" data-next-step="participants">Next: Participants</button>
+              </div>
+            </section>
+
+            <section class="form-section builder-step" data-step="participants">
+              <div class="section-heading">
+                <span>3</span>
+                <div>
+                  <h2>Participants</h2>
+                  <p>Add participant rows for <code>participants.csv</code> and optional characteristics.</p>
+                </div>
+              </div>
+              <div class="file-drop compact-upload">
+                <input id="participants-import" type="file" accept=".csv,.tsv,.json,text/csv,text/tab-separated-values,application/json" />
+                <p id="participants-import-file" class="import-file-label" hidden></p>
+                <p id="participants-import-summary">
+                  Optional: import <code>participants.csv</code> or <code>participants.json</code>. Expected fields:
+                  <code>participant_internal_id</code>,
+                  <code>participant_age</code>,
+                  <code>participant_sex</code>,
+                  <code>participant_gender</code>.
+                </p>
+                <button type="button" class="secondary-button small-button" id="remove-participants-import">Remove imported participants file</button>
+              </div>
+              <div class="table-builder">
+                <div id="participants-list"></div>
+                <div class="row-actions">
+                  <button type="button" class="secondary-button" id="add-participant">Add participant</button>
+                  <button type="button" class="secondary-button danger-button" id="clear-all-participants">Clear all participant rows</button>
+                </div>
+              </div>
+
+              <div class="subsection-heading">
+                <h3>Participant characteristics</h3>
+                <p>Optional long-format rows for <code>participant_characteristics.csv</code>.</p>
+              </div>
+              <div class="file-drop compact-upload">
+                <input id="characteristics-import" type="file" accept=".csv,.tsv,.json,text/csv,text/tab-separated-values,application/json" />
+                <p id="characteristics-import-file" class="import-file-label" hidden></p>
+                <p id="characteristics-import-summary">
+                  Optional: import <code>participant_characteristics.csv</code> or JSON. Expected fields:
+                  <code>participant_internal_id</code>,
+                  <code>participant_characteristic_name</code>,
+                  <code>participant_characteristic_value</code>,
+                  <code>participant_characteristic_unit</code>,
+                  <code>participant_characteristic_description</code>.
+                </p>
+                <button type="button" class="secondary-button small-button" id="remove-characteristics-import">Remove imported characteristics file</button>
+              </div>
+              <div class="table-builder">
+                <div id="characteristics-list"></div>
+                <div class="row-actions">
+                  <button type="button" class="secondary-button" id="add-characteristic">Add characteristic</button>
+                  <button type="button" class="secondary-button danger-button" id="clear-all-characteristics">Clear all characteristic rows</button>
+                </div>
+              </div>
+              <div class="schema-actions bottom-schema-actions">
+                <span>Download schemas:</span>
+                <button type="button" class="secondary-button small-button" id="download-participants-schema">Participants</button>
+                <button type="button" class="secondary-button small-button" id="download-characteristics-schema">Characteristics</button>
+              </div>
+              <div class="actions inline-actions">
+                <button type="button" class="secondary-button" data-prev-step="study">Back</button>
+                <button type="button" class="secondary-button danger-button" id="clear-participants-page">Clear Participants page</button>
+                <button type="button" data-next-step="devices">Next: Devices</button>
+              </div>
+            </section>
+
+            <section class="form-section builder-step" data-step="devices">
+              <div class="section-heading">
+                <span>4</span>
+                <div>
+                  <h2>Devices</h2>
+                  <p>Add device records for <code>devices.json</code>. Datasheet IDs come from the next step.</p>
+                </div>
+              </div>
+              <div id="devices-list" class="card-list"></div>
+              <button type="button" class="secondary-button" id="add-device">Add device</button>
+              <div class="actions inline-actions">
+                <button type="button" class="secondary-button" data-prev-step="participants">Back</button>
+                <button type="button" data-next-step="datasheets">Next: Datasheets</button>
+              </div>
+            </section>
+
+            <section class="form-section builder-step" data-step="datasheets">
+              <div class="section-heading">
+                <span>5</span>
+                <div>
+                  <h2>Device datasheets</h2>
+                  <p>Add device or sensor datasheet records referenced by devices.</p>
+                </div>
+              </div>
+              <div id="datasheets-list" class="card-list"></div>
+              <button type="button" class="secondary-button" id="add-datasheet">Add datasheet</button>
+              <div class="actions inline-actions">
+                <button type="button" class="secondary-button" data-prev-step="devices">Back</button>
+                <button type="button" data-next-step="datasets">Next: Datasets</button>
+              </div>
+            </section>
+
+            <section class="form-section builder-step" data-step="datasets">
+              <div class="section-heading">
+                <span>6</span>
+                <div>
+                  <h2>Dataset record</h2>
+                  <p>One dataset record represents one participant dataset. Cross-reference fields use earlier pages.</p>
+                </div>
+              </div>
+
+              <div class="grid">
+                <label>
                   Dataset ID <span class="required">*</span>
                   <input id="dataset-id" name="dataset-id" type="text" placeholder="Example: DS001" required />
                 </label>
                 <label>
                   Study ID <span class="required">*</span>
-                  <input id="study-id" name="study-id" type="text" placeholder="Example: STUDY001" required />
+                  <select id="study-id" name="study-id" required></select>
                 </label>
                 <label>
                   Participant ID <span class="required">*</span>
-                  <input id="participant-id" name="participant-id" type="text" placeholder="Example: P001" required />
+                  <select id="participant-id" name="participant-id" required></select>
                 </label>
                 <label>
                   Device ID <span class="required">*</span>
-                  <input id="device-id" name="device-id" type="text" placeholder="Example: D001" required />
+                  <select id="device-id" name="device-id" required></select>
                 </label>
                 <label>
                   Device location <span class="required">*</span>
@@ -84,11 +327,9 @@
                 Dataset instructions <span class="required">*</span>
                 <textarea id="instructions" name="instructions" rows="3" placeholder="Example: Wear device during waking hours and log non-wear periods."></textarea>
               </label>
-            </section>
 
-            <section class="form-section">
-              <div class="section-heading">
-                <span>2</span>
+              <div class="section-heading compact-heading">
+                <span>6a</span>
                 <div>
                   <h2>Dataset file assistant</h2>
                   <p>Each file group describes one set of same-structure files for this participant.</p>
@@ -148,7 +389,7 @@
               <div class="file-group-terms">
                 <div>
                   <h3>Variable terms for this file group</h3>
-                  <p>These terms populate the semantic-term dropdowns for variables in the active file group. `other` is always included.</p>
+                  <p>These terms populate the semantic-term dropdowns for variables in the active file group. <code>other</code> is always included.</p>
                 </div>
                 <div class="term-row term-header" aria-hidden="true">
                   <span>Term token</span>
@@ -200,32 +441,54 @@
                   </label>
                 </div>
               </div>
-            </section>
 
-            <section class="form-section">
-              <div class="section-heading">
-                <span>3</span>
+              <div class="section-heading compact-heading">
+                <span>6b</span>
                 <div>
                   <h2>Detected variables</h2>
-                  <p>Edit labels, units, calibration notes, semantic terms, and select primary variables.</p>
+                  <p>Edit labels, units, calibration notes, semantic terms, and tick primary variables.</p>
                 </div>
               </div>
 
               <div id="validation-summary" class="validation-summary">Select a file to detect columns.</div>
               <div id="variables-table" class="variables-table" aria-live="polite"></div>
+
+              <div class="actions inline-actions">
+                <button type="button" class="secondary-button" data-prev-step="datasheets">Back</button>
+                <button type="button" data-next-step="export">Next: Export</button>
+              </div>
             </section>
 
-            <section class="actions">
-              <button type="button" id="download-json" disabled>Download draft datasets.json</button>
-              <button type="button" id="copy-json" disabled>Copy JSON preview</button>
+            <section class="form-section builder-step" data-step="export">
+              <div class="section-heading">
+                <span>7</span>
+                <div>
+                  <h2>Export package</h2>
+                  <p>Download individual files for now. Zip export can be added next.</p>
+                </div>
+              </div>
+              <div id="package-summary" class="validation-summary"></div>
+              <div class="export-grid">
+                <button type="button" id="download-datapackage">Download datapackage.json</button>
+                <button type="button" id="download-study">Download study.json</button>
+                <button type="button" id="download-participants">Download participants.csv</button>
+                <button type="button" id="download-characteristics">Download participant_characteristics.csv</button>
+                <button type="button" id="download-devices">Download devices.json</button>
+                <button type="button" id="download-datasheets">Download device_datasheet.json</button>
+                <button type="button" id="download-json">Download datasets.json</button>
+                <button type="button" id="copy-json">Copy active preview</button>
+              </div>
+              <div class="actions inline-actions">
+                <button type="button" class="secondary-button" data-prev-step="datasets">Back</button>
+              </div>
             </section>
           </form>
         </section>
 
         <aside class="preview-panel">
           <div class="preview-heading">
-            <h2>JSON preview</h2>
-            <p>Updates after file detection.</p>
+            <h2 id="preview-title">Package preview</h2>
+            <p>Updates as you move through the builder.</p>
           </div>
           <pre id="json-preview">{}</pre>
         </aside>

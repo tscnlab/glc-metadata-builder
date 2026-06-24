@@ -492,3 +492,267 @@ pre {
     grid-template-columns: 1fr;
   }
 }
+
+.builder-step {
+  display: none;
+}
+
+.builder-step.active {
+  display: block;
+}
+
+.progress-panel li {
+  cursor: pointer;
+}
+
+code {
+  background: #edf2ef;
+  border: 1px solid var(--line);
+  padding: 1px 5px;
+  font-size: 0.9em;
+}
+
+.compact-heading {
+  margin-top: 24px;
+}
+
+.subsection-heading {
+  margin: 22px 0 12px;
+}
+
+.subsection-heading h3,
+.file-group-terms h3,
+.record-card h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.subsection-heading p,
+.file-group-terms p {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.table-builder,
+.card-list {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.table-row {
+  display: grid;
+  gap: 8px;
+  align-items: center;
+}
+
+.compact-participants {
+  grid-template-columns: minmax(130px, 1fr) 90px minmax(110px, 0.8fr) minmax(110px, 0.8fr) auto;
+}
+
+.characteristics-grid {
+  grid-template-columns: minmax(140px, 0.9fr) minmax(130px, 1fr) minmax(130px, 1fr) minmax(90px, 0.7fr) minmax(160px, 1.2fr) auto;
+}
+
+.table-header {
+  background: #e8eeea;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 0.74rem;
+  font-weight: 900;
+  padding: 10px;
+  text-transform: uppercase;
+}
+
+.table-row:not(.table-header) {
+  border: 1px solid var(--line);
+  background: #f8faf8;
+  padding: 10px;
+}
+
+.record-card {
+  border: 1px solid var(--line);
+  background: #f8faf8;
+  padding: 16px;
+}
+
+.record-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.remove-row {
+  background: #6f7a75;
+  white-space: nowrap;
+}
+
+.inline-actions {
+  margin-top: 18px;
+}
+
+.export-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.export-grid button:nth-child(even) {
+  background: #45524f;
+}
+
+.file-group-terms {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0;
+}
+
+@media (max-width: 900px) {
+  .compact-participants,
+  .characteristics-grid,
+  .export-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.study-groups-grid {
+  grid-template-columns: minmax(120px, 0.9fr) minmax(170px, 1.2fr) 80px minmax(160px, 1.1fr) minmax(160px, 1.1fr) auto;
+}
+
+.generated-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 6px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid #b9d8cf;
+  font-size: 0.68rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+@media (max-width: 900px) {
+  .study-groups-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.compact-upload {
+  margin-bottom: 18px;
+}
+
+.import-summary.ok {
+  color: var(--ok);
+  font-weight: 700;
+}
+
+.import-summary.warning {
+  color: var(--warning);
+  font-weight: 800;
+}
+
+#study-groups-list {
+  overflow-x: auto;
+}
+
+.contributor-builder,
+#contributors-list {
+  display: grid;
+  gap: 12px;
+}
+
+.contributor-card {
+  border: 1px solid var(--line);
+  background: #f8faf8;
+  padding: 14px;
+}
+
+.participant-card {
+  border: 1px solid var(--line);
+  background: #f8faf8;
+  padding: 14px;
+}
+
+.contributor-fields,
+.participant-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.small-button {
+  justify-self: start;
+  padding: 8px 11px;
+  font-size: 0.78rem;
+}
+
+@media (max-width: 900px) {
+  .contributor-fields,
+  .participant-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.danger-button {
+  background: #8b4a3d;
+}
+
+.import-file-label {
+  display: inline-block;
+  width: fit-content;
+  padding: 6px 9px;
+  background: #eef6f2;
+  border: 1px solid #b9d8cf;
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.import-file-label[hidden] {
+  display: none;
+}
+
+.schema-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 18px 0 10px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.bottom-schema-actions {
+  justify-content: flex-end;
+}
+
+@media (max-width: 720px) {
+  .schema-actions {
+    justify-content: flex-start;
+  }
+}
+
+.help-marker {
+  display: inline-grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  margin-left: 4px;
+  border-radius: 999px;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: white;
+  font-size: 0.72rem;
+  font-weight: 900;
+  cursor: help;
+  vertical-align: middle;
+}
