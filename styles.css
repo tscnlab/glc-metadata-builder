@@ -185,6 +185,29 @@ label {
   line-height: 1.3;
 }
 
+.concept-card {
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--green);
+  background: #eef6f2;
+  padding: 14px 16px;
+  margin: 12px 0 18px;
+}
+
+.concept-card h3 {
+  margin: 0 0 7px;
+  font-size: 1rem;
+}
+
+.concept-card p {
+  margin: 0;
+  color: var(--ink);
+  line-height: 1.45;
+}
+
+.concept-card p + p {
+  margin-top: 7px;
+}
+
 .checkbox-line {
   display: flex;
   align-items: center;
@@ -341,6 +364,47 @@ textarea {
 
 .validation-summary.ok {
   color: var(--ok);
+}
+
+.export-validation-panel {
+  border: 1px solid var(--line);
+  background: #fbfcfb;
+  padding: 14px;
+  margin: 0 0 16px;
+}
+
+.export-validation-panel.ok {
+  border-left: 5px solid var(--ok);
+  background: #eff8f1;
+}
+
+.export-validation-panel.warning {
+  border-left: 5px solid var(--warning);
+  background: var(--warning-soft);
+}
+
+.export-validation-panel h3 {
+  margin: 0 0 6px;
+  font-size: 1rem;
+}
+
+.export-validation-panel p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.export-validation-panel ul {
+  margin: 10px 0 0;
+  padding-left: 20px;
+}
+
+.export-validation-panel li {
+  margin: 5px 0;
+  line-height: 1.35;
+}
+
+.export-validation-panel strong {
+  color: var(--ink);
 }
 
 .variables-table {
@@ -598,6 +662,10 @@ code {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.zip-download {
+  grid-column: 1 / -1;
 }
 
 .export-grid button:nth-child(even) {

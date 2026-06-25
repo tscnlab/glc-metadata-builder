@@ -125,7 +125,7 @@
                   <input id="study-keywords" type="text" placeholder="Comma-separated, e.g. light, sleep, wearable" />
                 </label>
                 <label class="wide" title="Dataset IDs are generated from the Datasets page. Type: array of strings.">
-                  Study datasets <span class="generated-badge">generated from Datasets page</span>
+                  Study datasets <span class="required">*</span> <span class="generated-badge">generated from Datasets page</span>
                   <input id="study-datasets-preview" type="text" readonly placeholder="Dataset IDs will appear here after you add dataset records" />
                 </label>
               </div>
@@ -327,9 +327,41 @@
               <div class="section-heading">
                 <span>6</span>
                 <div>
-                  <h2>Dataset record</h2>
+                  <h2 title="A dataset record is one participant-level measurement dataset, with optional auxiliary file groups needed to interpret that measurement.">
+                    Dataset record <span class="help-marker" title="Create a new dataset record when the participant, main device, body/device location, or primary modality changes. Add file groups when files belong to the same participant measurement context.">?</span>
+                  </h2>
                   <p>One dataset record represents one participant dataset. Cross-reference fields use earlier pages.</p>
                 </div>
+              </div>
+              <div class="concept-card">
+                <h3>Dataset or file group?</h3>
+                <p>
+                  Use a <strong>new dataset record</strong> for a different participant, primary device, body/device location, or primary modality.
+                  Use a <strong>file group</strong> for files that belong to the same participant measurement context, including auxiliary files such as wear logs.
+                </p>
+                <p class="field-help">
+                  Example: wrist light data and its wear log can be one dataset with two file groups. Wrist light and chest light for the same participant should usually be two dataset records.
+                </p>
+              </div>
+              <div class="file-drop compact-upload">
+                <input id="dataset-import" type="file" accept=".json,application/json" />
+                <p id="dataset-import-file" class="import-file-label" hidden></p>
+                <p id="dataset-import-summary">
+                  Optional: import an existing <code>datasets.json</code>. Multiple dataset records are imported as separate participant-level records.
+                </p>
+                <button type="button" class="secondary-button small-button" id="import-dataset-button">Import selected dataset file</button>
+                <button type="button" class="secondary-button small-button" id="remove-dataset-import">Remove imported dataset file</button>
+              </div>
+
+              <div class="subsection-heading">
+                <h3 title="Each dataset record represents one participant-level measurement context.">
+                  Dataset records <span class="help-marker" title="A study can have many dataset records. A participant can also have multiple dataset records if they have different devices, locations, or modalities.">?</span>
+                </h3>
+                <p>Each record should describe one participant dataset. Add more records when a study has multiple participants or participant-level datasets.</p>
+              </div>
+              <div class="file-group-toolbar">
+                <div id="dataset-records-list" class="file-groups-list"></div>
+                <button type="button" class="secondary-button" id="add-dataset-record">Add dataset record</button>
               </div>
 
               <div class="grid">
@@ -379,7 +411,9 @@
               <div class="section-heading compact-heading">
                 <span>6a</span>
                 <div>
-                  <h2>Dataset file assistant</h2>
+                  <h2 title="A file group is one or more same-structure files within the active dataset record.">
+                    Dataset file assistant <span class="help-marker" title="Use file groups for same-context files, such as repeated files with the same columns, or auxiliary files needed to analyze the primary measurement.">?</span>
+                  </h2>
                   <p>Each file group describes one set of same-structure files for this participant.</p>
                 </div>
               </div>
@@ -501,8 +535,13 @@
               <div id="validation-summary" class="validation-summary">Select a file to detect columns.</div>
               <div id="variables-table" class="variables-table" aria-live="polite"></div>
 
+              <div class="schema-actions bottom-schema-actions">
+                <span>Download schemas:</span>
+                <button type="button" class="secondary-button small-button" id="download-dataset-schema">Dataset</button>
+              </div>
               <div class="actions inline-actions">
                 <button type="button" class="secondary-button" data-prev-step="datasheets">Back</button>
+                <button type="button" class="secondary-button danger-button" id="clear-dataset-page">Clear Dataset page</button>
                 <button type="button" data-next-step="export">Next: Export</button>
               </div>
             </section>
@@ -512,11 +551,16 @@
                 <span>7</span>
                 <div>
                   <h2>Export package</h2>
-                  <p>Download individual files for now. Zip export can be added next.</p>
+                  <p>Download individual metadata files or a metadata package zip.</p>
                 </div>
               </div>
               <div id="package-summary" class="validation-summary"></div>
+              <div id="export-validation-panel" class="export-validation-panel"></div>
+              <p class="field-help">
+                The zip includes generated metadata files and schemas. It does not include the original data files referenced by <code>datasets.json</code>.
+              </p>
               <div class="export-grid">
+                <button type="button" id="download-package-zip" class="zip-download">Download metadata package .zip</button>
                 <button type="button" id="download-datapackage">Download datapackage.json</button>
                 <button type="button" id="download-study">Download study.json</button>
                 <button type="button" id="download-participants">Download participants.csv</button>
@@ -543,6 +587,6 @@
       </section>
     </main>
 
-    <script src="app.js?v=20260625-spectral-editor"></script>
+    <script src="app.js?v=20260625-soft-validation"></script>
   </body>
 </html>

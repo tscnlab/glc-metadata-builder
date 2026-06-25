@@ -56,8 +56,25 @@ const createDatasheet = () => ({
   channelsText: "",
 });
 
+const createDatasetRecord = () => ({
+  datasetId: "",
+  studyId: "",
+  participantId: "",
+  deviceId: "",
+  deviceLocation: "",
+  samplingInterval: "",
+  datasetTimezone: "",
+  latitude: "",
+  longitude: "",
+  instructions: "",
+  fileGroups: [createFileGroup()],
+});
+
+const initialDataset = createDatasetRecord();
+
 const state = {
   activeStep: "project",
+  activeDatasetIndex: 0,
   activeGroupIndex: 0,
   studyGroups: [],
   contributors: [],
@@ -66,7 +83,8 @@ const state = {
   devices: [createDevice()],
   datasheets: [createDatasheet()],
   datasheetImportedFiles: [],
-  fileGroups: [createFileGroup()],
+  datasets: [initialDataset],
+  fileGroups: initialDataset.fileGroups,
 };
 
 const fileInput = document.querySelector("#file-input");
@@ -74,14 +92,21 @@ const fileSummary = document.querySelector("#file-summary");
 const fileWarning = document.querySelector("#file-warning");
 const variablesTable = document.querySelector("#variables-table");
 const termsList = document.querySelector("#terms-list");
+const datasetRecordsList = document.querySelector("#dataset-records-list");
 const fileGroupsList = document.querySelector("#file-groups-list");
 const validationSummary = document.querySelector("#validation-summary");
+const datasetImport = document.querySelector("#dataset-import");
+const importDatasetButton = document.querySelector("#import-dataset-button");
+const datasetImportFile = document.querySelector("#dataset-import-file");
+const datasetImportSummary = document.querySelector("#dataset-import-summary");
 const jsonPreview = document.querySelector("#json-preview");
 const previewTitle = document.querySelector("#preview-title");
 const packageSummary = document.querySelector("#package-summary");
+const exportValidationPanel = document.querySelector("#export-validation-panel");
 const downloadButton = document.querySelector("#download-json");
 const copyButton = document.querySelector("#copy-json");
 const addTermButton = document.querySelector("#add-term");
+const addDatasetRecordButton = document.querySelector("#add-dataset-record");
 const addFileGroupButton = document.querySelector("#add-file-group");
 const studyImport = document.querySelector("#study-import");
 const studyImportFile = document.querySelector("#study-import-file");
@@ -179,10 +204,21 @@ importDatasheetsButton.addEventListener("click", () => {
   }
   importDatasheetsFiles(files);
 });
+datasetImport.addEventListener("change", handleDatasetImport);
+importDatasetButton.addEventListener("click", () => {
+  const file = datasetImport.files?.[0];
+  if (!file) {
+    datasetImportSummary.textContent = "Choose a datasets.json file first, then click Import.";
+    datasetImportSummary.className = "import-summary warning";
+    return;
+  }
+  importDatasetFile(file);
+});
 clearContributorsImportButton.addEventListener("click", clearContributorsImport);
 downloadButton.addEventListener("click", () => downloadText("datasets.json", JSON.stringify(buildDatasetDraft(), null, 2), "application/json"));
 copyButton.addEventListener("click", copyPreview);
 addTermButton.addEventListener("click", addTerm);
+addDatasetRecordButton.addEventListener("click", addDatasetRecord);
 addFileGroupButton.addEventListener("click", addFileGroup);
 document.querySelector("#add-study-group").addEventListener("click", addStudyGroup);
 document.querySelector("#add-contributor").addEventListener("click", addContributor);
@@ -203,6 +239,9 @@ document.querySelector("#add-datasheet").addEventListener("click", addDatasheet)
 document.querySelector("#clear-all-datasheets").addEventListener("click", () => clearAllDatasheets());
 document.querySelector("#remove-datasheets-import").addEventListener("click", () => clearAllDatasheets("Imported datasheet file removed. Add rows manually or import another file."));
 document.querySelector("#clear-datasheets-page").addEventListener("click", clearDatasheetsPage);
+document.querySelector("#remove-dataset-import").addEventListener("click", () => clearDatasetPage("Imported dataset file removed. Add data manually or import another datasets.json file."));
+document.querySelector("#clear-dataset-page").addEventListener("click", () => clearDatasetPage());
+document.querySelector("#download-package-zip").addEventListener("click", downloadPackageZip);
 document.querySelector("#download-datapackage").addEventListener("click", () => downloadText("datapackage.json", JSON.stringify(buildDataPackage(), null, 2), "application/json"));
 document.querySelector("#download-study").addEventListener("click", () => downloadText("study.json", JSON.stringify(buildStudyDraft(), null, 2), "application/json"));
 document.querySelector("#download-participants").addEventListener("click", () => downloadText("participants.csv", buildParticipantsCsv(), "text/csv"));
@@ -215,6 +254,7 @@ document.querySelector("#download-participants-schema").addEventListener("click"
 document.querySelector("#download-characteristics-schema").addEventListener("click", () => downloadSchema("participant_characteristics.schema.json"));
 document.querySelector("#download-device-schema").addEventListener("click", () => downloadSchema("device.schema.json"));
 document.querySelector("#download-datasheet-schema").addEventListener("click", () => downloadSchema("device_datasheet.schema.json"));
+document.querySelector("#download-dataset-schema").addEventListener("click", () => downloadSchema("dataset.schema.json"));
 
 document.querySelectorAll("[data-next-step]").forEach((button) => {
   button.addEventListener("click", () => setStep(button.dataset.nextStep));
@@ -232,22 +272,28 @@ Object.values(fields).forEach((field) => {
 });
 
 function handleFormInput() {
-  syncActiveGroupFromControls();
+  syncDatasetControlsIfNeeded();
   updateCrossrefOptions();
   syncDatetimeControls();
+  renderDatasetRecords();
   updatePreview();
 }
 
 function handleFormChange() {
-  syncActiveGroupFromControls();
+  syncDatasetControlsIfNeeded();
   updateCrossrefOptions();
   syncDatetimeControls();
+  renderDatasetRecords();
   renderVariables();
   updatePreview();
 }
 
 function setStep(step) {
-  syncActiveGroupFromControls();
+  if (state.activeStep === "datasets") {
+    syncActiveDatasetFromControls();
+  } else {
+    syncActiveGroupFromControls();
+  }
   state.activeStep = step;
   document.querySelectorAll(".builder-step").forEach((section) => {
     section.classList.toggle("active", section.dataset.step === step);
@@ -256,11 +302,75 @@ function setStep(step) {
     item.classList.toggle("active", item.dataset.stepLink === step);
   });
   updateCrossrefOptions();
+  if (step === "datasets") {
+    syncControlsFromActiveDataset();
+  }
   updatePreview();
+}
+
+function activeDataset() {
+  return state.datasets[state.activeDatasetIndex];
 }
 
 function activeGroup() {
   return state.fileGroups[state.activeGroupIndex];
+}
+
+function syncDatasetControlsIfNeeded() {
+  if (state.activeStep === "datasets") {
+    syncActiveDatasetFromControls();
+  }
+}
+
+function syncActiveDatasetFromControls() {
+  const dataset = activeDataset();
+  if (!dataset) {
+    return;
+  }
+  syncActiveGroupFromControls();
+  dataset.datasetId = fields.datasetId.value.trim();
+  dataset.studyId = fields.studyId.value;
+  dataset.participantId = fields.participantId.value;
+  dataset.deviceId = fields.deviceId.value;
+  dataset.deviceLocation = fields.deviceLocation.value.trim();
+  dataset.samplingInterval = fields.samplingInterval.value;
+  dataset.datasetTimezone = fields.datasetTimezone.value.trim();
+  dataset.latitude = fields.latitude.value.trim();
+  dataset.longitude = fields.longitude.value.trim();
+  dataset.instructions = fields.instructions.value.trim();
+  dataset.fileGroups = state.fileGroups;
+}
+
+function syncControlsFromActiveDataset() {
+  const dataset = activeDataset();
+  if (!dataset) {
+    return;
+  }
+
+  fields.datasetId.value = dataset.datasetId || "";
+  setPendingSelectValue(fields.studyId, dataset.studyId || "");
+  setPendingSelectValue(fields.participantId, dataset.participantId || "");
+  setPendingSelectValue(fields.deviceId, dataset.deviceId || "");
+  fields.deviceLocation.value = dataset.deviceLocation || "";
+  fields.samplingInterval.value = dataset.samplingInterval ?? "";
+  fields.datasetTimezone.value = dataset.datasetTimezone || "";
+  fields.latitude.value = dataset.latitude || "";
+  fields.longitude.value = dataset.longitude || "";
+  fields.instructions.value = dataset.instructions || "";
+
+  state.fileGroups = dataset.fileGroups?.length ? dataset.fileGroups : [createFileGroup()];
+  dataset.fileGroups = state.fileGroups;
+  state.activeGroupIndex = Math.min(state.activeGroupIndex, state.fileGroups.length - 1);
+  if (state.activeGroupIndex < 0) {
+    state.activeGroupIndex = 0;
+  }
+
+  syncControlsFromActiveGroup();
+  renderDatasetRecords();
+  renderFileGroups();
+  renderTerms();
+  renderVariables();
+  updateCrossrefOptions();
 }
 
 function getStudyId() {
@@ -280,11 +390,11 @@ function getDatasheetIds() {
 }
 
 function updateCrossrefOptions() {
-  setSelectOptions(fields.studyId, getStudyId() ? [getStudyId()] : [], "Add study ID first");
-  setSelectOptions(fields.participantId, getParticipantIds(), "Add participant first");
-  setSelectOptions(fields.deviceId, getDeviceIds(), "Add device first");
+  setSelectOptions(fields.studyId, Array.from(new Set([getStudyId(), fields.studyId.value].filter(Boolean))), "Add study ID first");
+  setSelectOptions(fields.participantId, Array.from(new Set([...getParticipantIds(), fields.participantId.value].filter(Boolean))), "Add participant first");
+  setSelectOptions(fields.deviceId, Array.from(new Set([...getDeviceIds(), fields.deviceId.value].filter(Boolean))), "Add device first");
   document.querySelectorAll(".participant-select").forEach((select) => {
-    setSelectOptions(select, getParticipantIds(), "Select participant");
+    setSelectOptions(select, Array.from(new Set([...getParticipantIds(), select.value].filter(Boolean))), "Select participant");
   });
   document.querySelectorAll(".datasheet-select").forEach((select) => {
     setSelectOptions(select, Array.from(new Set([...getDatasheetIds(), select.value].filter(Boolean))), "Select datasheet");
@@ -341,13 +451,14 @@ function clearStudyPage() {
 
 async function loadSchemaHelp() {
   try {
-    const [studySchema, contributorSchema, participantsSchema, characteristicsSchema, deviceSchema, datasheetSchema] = await Promise.all([
+    const [studySchema, contributorSchema, participantsSchema, characteristicsSchema, deviceSchema, datasheetSchema, datasetSchema] = await Promise.all([
       fetch("schemas/2.0.0/study.schema.json").then((response) => response.json()),
       fetch("schemas/2.0.0/contributor.schema.json").then((response) => response.json()),
       fetch("schemas/2.0.0/participants.schema.json").then((response) => response.json()),
       fetch("schemas/2.0.0/participant_characteristics.schema.json").then((response) => response.json()),
       fetch("schemas/2.0.0/device.schema.json").then((response) => response.json()),
       fetch("schemas/2.0.0/device_datasheet.schema.json").then((response) => response.json()),
+      fetch("schemas/2.0.0/dataset.schema.json").then((response) => response.json()),
     ]);
 
     applySchemaHelp(studySchema, {
@@ -373,6 +484,7 @@ async function loadSchemaHelp() {
     applyTabularSchemaHelp(characteristicsSchema, "characteristicHelp");
     applyDeviceSchemaHelp(deviceSchema);
     applyDatasheetSchemaHelp(datasheetSchema);
+    applyDatasetSchemaHelp(datasetSchema);
   } catch (error) {
     console.warn("Schema help could not be loaded.", error);
   }
@@ -432,6 +544,39 @@ function applyDatasheetSchemaHelp(schema) {
   state.datasheetSpectralHelp = schema?.properties?.datasheet_calibration_spectral_sensitivity?.items?.properties || {};
   state.datasheetChannelHelp = schema?.properties?.datasheet_channel?.items?.properties || {};
   renderDatasheets();
+}
+
+function applyDatasetSchemaHelp(schema) {
+  const properties = schema?.properties || {};
+  const crossref = properties.dataset_crossref?.properties || {};
+  applySchemaHelp(schema, {
+    "dataset-id": "dataset_internal_id",
+    "device-location": "dataset_device_location",
+    "sampling-interval": "dataset_sampling_interval",
+    "dataset-timezone": "dataset_timezone",
+    "instructions": "dataset_instructions",
+  });
+
+  const fieldHelp = {
+    studyId: schemaHelpTitle(crossref.dataset_crossref_study_id, "Internal ID for study"),
+    participantId: schemaHelpTitle(crossref.dataset_crossref_participant_id, "Internal ID for participant"),
+    deviceId: schemaHelpTitle(crossref.dataset_crossref_device_id, "Internal ID for device"),
+    latitude: schemaHelpTitle(properties.dataset_location, "Latitude of data collection"),
+    longitude: schemaHelpTitle(properties.dataset_location, "Longitude of data collection"),
+  };
+
+  [
+    [fields.studyId, fieldHelp.studyId],
+    [fields.participantId, fieldHelp.participantId],
+    [fields.deviceId, fieldHelp.deviceId],
+    [fields.latitude, fieldHelp.latitude],
+    [fields.longitude, fieldHelp.longitude],
+  ].forEach(([element, helpText]) => {
+    const label = element?.closest("label");
+    if (!label) return;
+    label.title = helpText;
+    addHelpMarker(label, helpText);
+  });
 }
 
 function schemaHelpTitle(property, fallback) {
@@ -1169,6 +1314,189 @@ function clearAllDatasheets(message = "All datasheet rows cleared. Add rows manu
   updatePreview();
 }
 
+async function handleDatasetImport(event) {
+  const file = event.target.files?.[0];
+  if (!file) {
+    return;
+  }
+  await importDatasetFile(file);
+}
+
+async function importDatasetFile(file) {
+  datasetImportSummary.textContent = `Reading ${file.name}...`;
+  datasetImportSummary.className = "import-summary";
+
+  try {
+    const parsed = JSON.parse(await file.text());
+    const rows = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray(parsed?.datasets)
+        ? parsed.datasets
+        : parsed?.dataset_internal_id
+          ? [parsed]
+          : null;
+
+    if (!rows || rows.length === 0) {
+      throw new Error("Expected datasets.json as an array, a single dataset object, or an object with a datasets array.");
+    }
+
+    fields.schemaVersion.value = rows.find((row) => row?.schema_version)?.schema_version || fields.schemaVersion.value || "2.0.0";
+    state.datasets = rows.map(datasetRecordFromSchema);
+    state.activeDatasetIndex = 0;
+    state.activeGroupIndex = 0;
+    syncControlsFromActiveDataset();
+    showImportFile(datasetImportFile, file.name);
+    datasetImportSummary.textContent = `Imported ${rows.length} dataset record(s) from ${file.name}.`;
+    datasetImportSummary.className = "import-summary ok";
+  } catch (error) {
+    datasetImportSummary.textContent = `Could not import ${file.name}: ${error.message}`;
+    datasetImportSummary.className = "import-summary warning";
+  } finally {
+    datasetImport.value = "";
+  }
+}
+
+function populateDatasetFromSchema(dataset) {
+  state.datasets = [datasetRecordFromSchema(dataset)];
+  state.activeDatasetIndex = 0;
+  state.activeGroupIndex = 0;
+  fields.schemaVersion.value = dataset.schema_version || fields.schemaVersion.value || "2.0.0";
+  syncControlsFromActiveDataset();
+  updatePreview();
+}
+
+function datasetRecordFromSchema(dataset) {
+  const record = createDatasetRecord();
+  record.datasetId = dataset.dataset_internal_id || "";
+  record.instructions = dataset.dataset_instructions || "";
+  record.studyId = dataset.dataset_crossref?.dataset_crossref_study_id || "";
+  record.participantId = dataset.dataset_crossref?.dataset_crossref_participant_id || "";
+  record.deviceId = dataset.dataset_crossref?.dataset_crossref_device_id || "";
+  record.deviceLocation = dataset.dataset_device_location || "";
+  record.samplingInterval = dataset.dataset_sampling_interval ?? "";
+  record.datasetTimezone = dataset.dataset_timezone || "";
+  record.latitude = Array.isArray(dataset.dataset_location) ? dataset.dataset_location[0] || "" : "";
+  record.longitude = Array.isArray(dataset.dataset_location) ? dataset.dataset_location[1] || "" : "";
+
+  const terms = normalizeDatasetTerms(dataset.dataset_variable_terms);
+  const datasetFiles = Array.isArray(dataset.dataset_file) && dataset.dataset_file.length
+    ? dataset.dataset_file
+    : [];
+
+  record.fileGroups = datasetFiles.length
+    ? datasetFiles.map((fileGroup, index) => fileGroupFromSchema(fileGroup, terms, `File group ${index + 1}`))
+    : [createFileGroup()];
+
+  const datetimeTarget = record.fileGroups.find((group) => !group.auxiliary) || record.fileGroups[0];
+  const datasetDatetime = dataset.dataset_datetime || {};
+  datetimeTarget.datetimeSource = "column";
+  datetimeTarget.datetimeDate = datasetDatetime.dataset_datetime_date || "";
+  datetimeTarget.datetimeDateformat = datasetDatetime.dataset_datetime_dateformat || "";
+  datetimeTarget.datetimeTime = datasetDatetime.dataset_datetime_time || "";
+  datetimeTarget.datetimeTimeformat = datasetDatetime.dataset_datetime_timeformat || "";
+
+  return record;
+}
+
+function normalizeDatasetTerms(terms) {
+  const normalized = Array.isArray(terms)
+    ? terms
+      .map((entry) => ({
+        term: entry?.term || "",
+        label: entry?.label || "",
+      }))
+      .filter((entry) => entry.term)
+    : [];
+  if (!normalized.some((entry) => entry.term === "other")) {
+    normalized.push({ term: "other", label: "Other" });
+  }
+  return normalized;
+}
+
+function fileGroupFromSchema(fileGroup, datasetTerms, fallbackName) {
+  const group = createFileGroup(fallbackName);
+  group.files = Array.isArray(fileGroup.dataset_file_names)
+    ? fileGroup.dataset_file_names.map((name) => pathBasename(name))
+    : [];
+  group.columns = Array.isArray(fileGroup.dataset_file_variables)
+    ? fileGroup.dataset_file_variables.map((variable) => variable.dataset_file_variables_name).filter(Boolean)
+    : [];
+  group.fileFormat = fileGroup.dataset_file_format || "";
+  group.encoding = Array.isArray(fileGroup.dataset_file_encoding) ? fileGroup.dataset_file_encoding[0] || "" : "";
+  group.fileTimezone = fileGroup.dataset_file_timezone || "";
+  group.auxiliary = typeof fileGroup.dataset_file_auxiliary === "boolean" ? fileGroup.dataset_file_auxiliary : "";
+  group.headerRow = fileGroup.dataset_file_header_row ?? "";
+  group.preprocessingBol = typeof fileGroup.dataset_file_preprocessing?.dataset_file_preprocessing_bol === "boolean"
+    ? fileGroup.dataset_file_preprocessing.dataset_file_preprocessing_bol
+    : "";
+  group.preprocessingDesc = Array.isArray(fileGroup.dataset_file_preprocessing?.dataset_file_preprocessing_desc)
+    ? fileGroup.dataset_file_preprocessing.dataset_file_preprocessing_desc.join("\n")
+    : "";
+  group.terms = mergeTermsWithVariables(datasetTerms, fileGroup.dataset_file_variables);
+  group.variableState = variableStateFromSchema(fileGroup.dataset_file_variables, fileGroup.primary_variables);
+  group.name = group.auxiliary === true ? "Auxiliary file group" : "Primary file group";
+  return group;
+}
+
+function mergeTermsWithVariables(datasetTerms, variables) {
+  const terms = datasetTerms.map((entry) => ({ ...entry }));
+  (variables || []).forEach((variable) => {
+    const term = variable?.dataset_file_variables_term?.variable_term;
+    if (term && !terms.some((entry) => entry.term === term)) {
+      terms.push({ term, label: term === "other" ? "Other" : term });
+    }
+  });
+  if (!terms.some((entry) => entry.term === "other")) {
+    terms.push({ term: "other", label: "Other" });
+  }
+  return terms;
+}
+
+function variableStateFromSchema(variables, primaryVariables) {
+  const primary = new Set(Array.isArray(primaryVariables) ? primaryVariables : []);
+  return (variables || []).reduce((stateByColumn, variable) => {
+    const column = variable.dataset_file_variables_name;
+    if (!column) return stateByColumn;
+    const term = variable.dataset_file_variables_term?.variable_term || "other";
+    stateByColumn[column] = {
+      primary: primary.has(column),
+      label: variable.dataset_file_variables_labels || column,
+      unit: variable.dataset_file_variables_units || "",
+      calibration: variable.dataset_file_variables_calibration || "",
+      term,
+      variableName: variable.dataset_file_variables_term?.variable_name || column,
+    };
+    return stateByColumn;
+  }, {});
+}
+
+function pathBasename(path) {
+  return String(path || "").split(/[\\/]/).pop();
+}
+
+function setPendingSelectValue(select, value) {
+  if (!select) return;
+  if (value && !Array.from(select.options).some((option) => option.value === value)) {
+    select.insertAdjacentHTML("beforeend", `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`);
+  }
+  select.value = value || "";
+}
+
+function clearDatasetPage(message = "Dataset page cleared. Add data manually or import another datasets.json file.") {
+  const next = createDatasetRecord();
+  state.datasets = [next];
+  state.activeDatasetIndex = 0;
+  state.fileGroups = next.fileGroups;
+  state.activeGroupIndex = 0;
+  datasetImport.value = "";
+  hideImportFile(datasetImportFile);
+  datasetImportSummary.textContent = normalizeStatusMessage(message, "Dataset page cleared. Add data manually or import another datasets.json file.");
+  datasetImportSummary.className = "import-summary";
+  syncControlsFromActiveDataset();
+  updateCrossrefOptions();
+  updatePreview();
+}
+
 function normalizeStatusMessage(message, fallback) {
   return typeof message === "string" ? message : fallback;
 }
@@ -1897,6 +2225,76 @@ function renderFileGroups() {
   });
 }
 
+function renderDatasetRecords() {
+  if (!datasetRecordsList) {
+    return;
+  }
+
+  datasetRecordsList.innerHTML = "";
+  state.datasets.forEach((dataset, index) => {
+    const wrapper = document.createElement("div");
+    wrapper.className = `file-group-chip${index === state.activeDatasetIndex ? " active" : ""}`;
+
+    const labelParts = [
+      dataset.datasetId || "Untitled dataset",
+      dataset.participantId ? `participant ${dataset.participantId}` : "",
+    ].filter(Boolean);
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "file-group-button";
+    button.textContent = `${index + 1}. ${labelParts.join(" / ")}`;
+    button.addEventListener("click", () => {
+      syncActiveDatasetFromControls();
+      state.activeDatasetIndex = index;
+      state.activeGroupIndex = 0;
+      syncControlsFromActiveDataset();
+      updatePreview();
+    });
+
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.className = "remove-file-group";
+    removeButton.textContent = "Remove";
+    removeButton.disabled = state.datasets.length === 1;
+    removeButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      removeDatasetRecord(index);
+    });
+
+    wrapper.appendChild(button);
+    wrapper.appendChild(removeButton);
+    datasetRecordsList.appendChild(wrapper);
+  });
+}
+
+function addDatasetRecord() {
+  syncActiveDatasetFromControls();
+  const next = createDatasetRecord();
+  next.studyId = getStudyId();
+  state.datasets.push(next);
+  state.activeDatasetIndex = state.datasets.length - 1;
+  state.activeGroupIndex = 0;
+  syncControlsFromActiveDataset();
+  updatePreview();
+}
+
+function removeDatasetRecord(index) {
+  if (state.datasets.length === 1) {
+    return;
+  }
+  syncActiveDatasetFromControls();
+  state.datasets.splice(index, 1);
+  if (state.activeDatasetIndex >= state.datasets.length) {
+    state.activeDatasetIndex = state.datasets.length - 1;
+  } else if (index < state.activeDatasetIndex) {
+    state.activeDatasetIndex -= 1;
+  }
+  state.activeGroupIndex = 0;
+  syncControlsFromActiveDataset();
+  updatePreview();
+}
+
 function addFileGroup() {
   syncActiveGroupFromControls();
   state.fileGroups.push(createFileGroup(`File group ${state.fileGroups.length + 1}`));
@@ -1927,6 +2325,9 @@ function removeFileGroup(index) {
 
 function syncControlsFromActiveGroup() {
   const group = activeGroup();
+  if (!group) {
+    return;
+  }
   fields.fileFormat.value = group.fileFormat;
   fields.encoding.value = group.encoding;
   fields.headerRow.value = group.headerRow === "" ? "" : String(group.headerRow);
@@ -1952,6 +2353,9 @@ function syncControlsFromActiveGroup() {
 
 function syncActiveGroupFromControls() {
   const group = activeGroup();
+  if (!group) {
+    return;
+  }
   group.fileFormat = fields.fileFormat.value || "";
   group.encoding = fields.encoding.value || "";
   group.headerRow = fields.headerRow.value === "" ? "" : Number(fields.headerRow.value);
@@ -1970,6 +2374,10 @@ function syncActiveGroupFromControls() {
 
 function renderTerms() {
   const group = activeGroup();
+  if (!group) {
+    termsList.innerHTML = "";
+    return;
+  }
   ensureOtherTerm(group);
   termsList.innerHTML = "";
 
@@ -1993,6 +2401,9 @@ function renderTerms() {
 }
 
 function ensureOtherTerm(group = activeGroup()) {
+  if (!group) {
+    return;
+  }
   const hasOther = group.terms.some((entry) => entry.term === "other");
   if (!hasOther) {
     group.terms.push({ term: "other", label: "Other" });
@@ -2034,7 +2445,16 @@ function removeTerm(event) {
 }
 
 function refreshDatetimeColumnOptions(group = activeGroup()) {
-  const columns = group.columns || [];
+  if (!group) {
+    fields.datetimeDate.innerHTML = '<option value="">None / collection date value</option>';
+    fields.datetimeTime.innerHTML = '<option value="">None / collection date value</option>';
+    return;
+  }
+  const columns = Array.from(new Set([
+    ...(group.columns || []),
+    group.datetimeDate,
+    group.datetimeTime,
+  ].filter(Boolean)));
   const options = ['<option value="">None / collection date value</option>'].concat(
     columns.map((column) => `<option value="${escapeHtml(column)}">${escapeHtml(column)}</option>`),
   );
@@ -2045,6 +2465,12 @@ function refreshDatetimeColumnOptions(group = activeGroup()) {
 function renderVariables() {
   const group = activeGroup();
   variablesTable.innerHTML = "";
+
+  if (!group) {
+    validationSummary.textContent = "Add a dataset file group to detect columns.";
+    validationSummary.className = "validation-summary";
+    return;
+  }
 
   if (group.columns.length === 0) {
     validationSummary.textContent = "Select file(s) to detect columns for this group.";
@@ -2220,9 +2646,9 @@ function buildDatasetFile(group) {
   return datasetFile;
 }
 
-function buildDatasetDraft() {
-  syncActiveGroupFromControls();
-  const datetimeGroup = state.fileGroups.find((group) => !group.auxiliary) || state.fileGroups[0];
+function buildDatasetRecordDraft(record) {
+  const fileGroups = record.fileGroups?.length ? record.fileGroups : [createFileGroup()];
+  const datetimeGroup = fileGroups.find((group) => !group.auxiliary) || fileGroups[0];
 
   const datasetDatetime = {
     dataset_datetime_date: datetimeGroup.datetimeSource === "collection"
@@ -2237,30 +2663,35 @@ function buildDatasetDraft() {
         : null,
   };
 
-  return [
-    {
-      schema_version: fields.schemaVersion.value || "2.0.0",
-      dataset_internal_id: fields.datasetId.value || "",
-      dataset_instructions: fields.instructions.value || "",
-      dataset_crossref: {
-        dataset_crossref_study_id: fields.studyId.value || "",
-        dataset_crossref_participant_id: fields.participantId.value || "",
-        dataset_crossref_device_id: fields.deviceId.value || "",
-      },
-      dataset_device_location: fields.deviceLocation.value || "",
-      dataset_sampling_interval: fields.samplingInterval.value === "" ? null : Number(fields.samplingInterval.value),
-      dataset_datetime: datasetDatetime,
-      dataset_timezone: fields.datasetTimezone.value || "",
-      dataset_location: [fields.latitude.value || "", fields.longitude.value || ""],
-      dataset_variable_terms: getDatasetVariableTerms(),
-      dataset_file: state.fileGroups.map(buildDatasetFile),
+  return {
+    schema_version: fields.schemaVersion.value || "2.0.0",
+    dataset_internal_id: record.datasetId || "",
+    dataset_instructions: record.instructions || "",
+    dataset_crossref: {
+      dataset_crossref_study_id: record.studyId || "",
+      dataset_crossref_participant_id: record.participantId || "",
+      dataset_crossref_device_id: record.deviceId || "",
     },
-  ];
+    dataset_device_location: record.deviceLocation || "",
+    dataset_sampling_interval: record.samplingInterval === "" ? null : Number(record.samplingInterval),
+    dataset_datetime: datasetDatetime,
+    dataset_timezone: record.datasetTimezone || "",
+    dataset_location: [record.latitude || "", record.longitude || ""],
+    dataset_variable_terms: getDatasetVariableTerms(fileGroups),
+    dataset_file: fileGroups.map(buildDatasetFile),
+  };
 }
 
-function getDatasetVariableTerms() {
+function buildDatasetDraft() {
+  if (state.activeStep === "datasets") {
+    syncActiveDatasetFromControls();
+  }
+  return state.datasets.map(buildDatasetRecordDraft);
+}
+
+function getDatasetVariableTerms(fileGroups = state.fileGroups) {
   const byTerm = new Map();
-  state.fileGroups.forEach((group) => {
+  fileGroups.forEach((group) => {
     ensureOtherTerm(group);
     group.terms
       .filter((entry) => entry.term)
@@ -2609,10 +3040,512 @@ function updatePackageSummary() {
   if (!packageSummary) return;
   packageSummary.className = "validation-summary ok";
   packageSummary.textContent = `${buildParticipantsRows().length} participant row(s), ${buildDevicesDraft().length} device record(s), ${buildDatasheetsDraft().length} datasheet record(s), ${buildDatasetDraft().length} dataset record(s).`;
+  renderExportValidationPanel();
 }
+
+function validateBuilder() {
+  return [
+    ...validateStudyForExport(),
+    ...validateParticipantsForExport(),
+    ...validateDevicesForExport(),
+    ...validateDatasheetsForExport(),
+    ...validateDatasetsForExport(),
+  ];
+}
+
+function validationIssue(section, message) {
+  return { section, message };
+}
+
+function isBlank(value) {
+  return value === null || value === undefined || String(value).trim() === "";
+}
+
+function hasAnyValue(values) {
+  return values.some((value) => !isBlank(value));
+}
+
+function validateStudyForExport() {
+  const issues = [];
+  const datasetIds = buildDatasetDraft().map((entry) => entry.dataset_internal_id).filter(Boolean);
+  [
+    [getStudyId(), "Study internal ID is missing."],
+    [fields.studyTitle.value, "Study title is missing."],
+    [fields.studyShortDescription.value, "Study short description is missing."],
+    [fields.studySample.value, "Study sample is missing."],
+    [fields.studySetting.value, "Study setting is missing."],
+    [fields.studyGeographicalLocation.value, "Study geographical location is missing."],
+    [datasetIds.join(","), "Study datasets is missing. Add at least one dataset record on the Datasets page."],
+  ].forEach(([value, message]) => {
+    if (isBlank(value)) {
+      issues.push(validationIssue("Study", message));
+    }
+  });
+  return issues;
+}
+
+function validateParticipantsForExport() {
+  const issues = [];
+  const participants = state.participants.filter((entry) => hasAnyValue([entry.id, entry.age, entry.sex, entry.gender]));
+
+  if (participants.length === 0) {
+    return [validationIssue("Participants", "At least one participant row is recommended before export.")];
+  }
+
+  participants.forEach((participant, index) => {
+    const label = participant.id || `row ${index + 1}`;
+    if (isBlank(participant.id)) {
+      issues.push(validationIssue("Participants", `Participant ${label}: participant ID is missing.`));
+    }
+    if (isBlank(participant.age)) {
+      issues.push(validationIssue("Participants", `Participant ${label}: age is missing.`));
+    }
+  });
+
+  return issues;
+}
+
+function validateDevicesForExport() {
+  const issues = [];
+  const devices = state.devices.filter((entry) => hasAnyValue([
+    entry.id,
+    entry.manufacturer,
+    entry.model,
+    entry.serialNumber,
+    entry.calibrationDate,
+    entry.datasheetId,
+    entry.sensorsText,
+  ]));
+
+  if (devices.length === 0) {
+    return [validationIssue("Devices", "At least one device record is recommended before export.")];
+  }
+
+  devices.forEach((device, index) => {
+    const label = device.id || `row ${index + 1}`;
+    [
+      [device.id, "device ID"],
+      [device.manufacturer, "manufacturer"],
+      [device.model, "model"],
+      [device.serialNumber, "serial number"],
+      [device.calibrationDate, "calibration date"],
+      [device.datasheetId, "datasheet ID"],
+    ].forEach(([value, fieldName]) => {
+      if (isBlank(value)) {
+        issues.push(validationIssue("Devices", `Device ${label}: ${fieldName} is missing.`));
+      }
+    });
+
+    const sensors = parseDeviceSensors(device.sensorsText || "");
+    if (!sensors || sensors.length === 0) {
+      issues.push(validationIssue("Devices", `Device ${label}: at least one sensor type is recommended.`));
+    }
+    (sensors || []).forEach((sensor, sensorIndex) => {
+      if (isBlank(sensor.device_sensor_type)) {
+        issues.push(validationIssue("Devices", `Device ${label}, sensor ${sensorIndex + 1}: sensor type is missing.`));
+      }
+    });
+  });
+
+  return issues;
+}
+
+function validateDatasheetsForExport() {
+  const issues = [];
+  const datasheets = state.datasheets.filter((entry) => hasAnyValue([
+    entry.id,
+    entry.manufacturer,
+    entry.type,
+    entry.model,
+    entry.calibrationInterval,
+    entry.spectralSensitivityText,
+    entry.linearity,
+    entry.directionalResponse,
+    entry.range,
+    entry.channelsText,
+  ]));
+
+  if (datasheets.length === 0) {
+    return [validationIssue("Datasheets", "At least one datasheet record is recommended before export.")];
+  }
+
+  datasheets.forEach((datasheet, index) => {
+    const label = datasheet.id || `row ${index + 1}`;
+    [
+      [datasheet.id, "datasheet ID"],
+      [datasheet.manufacturer, "manufacturer"],
+      [datasheet.type, "type"],
+      [datasheet.model, "model"],
+      [datasheet.calibrationInterval, "calibration interval"],
+      [datasheet.linearity, "linearity"],
+      [datasheet.directionalResponse, "directional response"],
+      [datasheet.range, "calibration range"],
+    ].forEach(([value, fieldName]) => {
+      if (isBlank(value)) {
+        issues.push(validationIssue("Datasheets", `Datasheet ${label}: ${fieldName} is missing.`));
+      }
+    });
+
+    const spectralRows = parseSpectralSensitivity(datasheet.spectralSensitivityText || "");
+    if (spectralRows.length === 0) {
+      issues.push(validationIssue("Datasheets", `Datasheet ${label}: spectral sensitivity rows are missing.`));
+    }
+    spectralRows.forEach((row, rowIndex) => {
+      if (Number.isNaN(row.datasheet_calibration_spectral_sensitivity_wavelength) || Number.isNaN(row.datasheet_calibration_spectral_sensitivity_relative)) {
+        issues.push(validationIssue("Datasheets", `Datasheet ${label}, spectral row ${rowIndex + 1}: wavelength and relative sensitivity must be numeric.`));
+      }
+    });
+
+    const channels = parseChannels(datasheet.channelsText || "");
+    if (!channels || channels.length === 0) {
+      issues.push(validationIssue("Datasheets", `Datasheet ${label}: at least one channel is missing.`));
+    }
+    (channels || []).forEach((channel, channelIndex) => {
+      if (Number.isNaN(channel.datasheet_channel_nr)) {
+        issues.push(validationIssue("Datasheets", `Datasheet ${label}, channel ${channelIndex + 1}: channel number is missing or not numeric.`));
+      }
+      if (isBlank(channel.datasheet_channel_name)) {
+        issues.push(validationIssue("Datasheets", `Datasheet ${label}, channel ${channelIndex + 1}: channel name is missing.`));
+      }
+    });
+  });
+
+  return issues;
+}
+
+function validateDatasetsForExport() {
+  const issues = [];
+
+  if (state.activeStep === "datasets") {
+    syncActiveDatasetFromControls();
+  }
+
+  const participantIds = new Set(getParticipantIds());
+  const deviceIds = new Set(getDeviceIds());
+  const studyId = getStudyId();
+  const datasetIds = new Set();
+
+  if (state.datasets.length === 0) {
+    return [validationIssue("Datasets", "At least one dataset record is recommended before export.")];
+  }
+
+  state.datasets.forEach((dataset, datasetIndex) => {
+    const label = dataset.datasetId || `record ${datasetIndex + 1}`;
+
+    [
+      [dataset.datasetId, "dataset ID"],
+      [dataset.studyId, "study ID"],
+      [dataset.participantId, "participant ID"],
+      [dataset.deviceId, "device ID"],
+      [dataset.deviceLocation, "device location"],
+      [dataset.samplingInterval, "sampling interval"],
+      [dataset.datasetTimezone, "dataset timezone"],
+      [dataset.latitude, "dataset location latitude"],
+      [dataset.longitude, "dataset location longitude"],
+      [dataset.instructions, "dataset instructions"],
+    ].forEach(([value, fieldName]) => {
+      if (isBlank(value)) {
+        issues.push(validationIssue("Datasets", `Dataset ${label}: ${fieldName} is missing.`));
+      }
+    });
+
+    if (!isBlank(dataset.datasetId)) {
+      if (datasetIds.has(dataset.datasetId)) {
+        issues.push(validationIssue("Datasets", `Dataset ${label}: dataset ID is duplicated.`));
+      }
+      datasetIds.add(dataset.datasetId);
+    }
+
+    if (!isBlank(dataset.studyId) && studyId && dataset.studyId !== studyId) {
+      issues.push(validationIssue("Datasets", `Dataset ${label}: study ID does not match the Study page ID.`));
+    }
+    if (!isBlank(dataset.participantId) && !participantIds.has(dataset.participantId)) {
+      issues.push(validationIssue("Datasets", `Dataset ${label}: participant ID does not match any participant row.`));
+    }
+    if (!isBlank(dataset.deviceId) && !deviceIds.has(dataset.deviceId)) {
+      issues.push(validationIssue("Datasets", `Dataset ${label}: device ID does not match any device record.`));
+    }
+
+    const fileGroups = dataset.fileGroups || [];
+    if (fileGroups.length === 0) {
+      issues.push(validationIssue("Datasets", `Dataset ${label}: at least one file group is missing.`));
+      return;
+    }
+
+    fileGroups.forEach((group, groupIndex) => {
+      const groupLabel = `Dataset ${label}, file group ${groupIndex + 1}`;
+      [
+        [group.fileFormat, "file format"],
+        [group.encoding, "encoding"],
+        [group.fileTimezone, "file timezone"],
+        [group.auxiliary, "auxiliary file status"],
+        [group.datetimeSource, "datetime source"],
+        [group.datetimeDateformat, "date/datetime format"],
+      ].forEach(([value, fieldName]) => {
+        if (isBlank(value)) {
+          issues.push(validationIssue("Datasets", `${groupLabel}: ${fieldName} is missing.`));
+        }
+      });
+
+      if (!group.files || group.files.length === 0) {
+        issues.push(validationIssue("Datasets", `${groupLabel}: no data file has been selected or listed.`));
+      }
+      if (!group.columns || group.columns.length === 0) {
+        issues.push(validationIssue("Datasets", `${groupLabel}: no variables/columns are listed.`));
+      }
+      if (group.datetimeSource === "column" && isBlank(group.datetimeDate)) {
+        issues.push(validationIssue("Datasets", `${groupLabel}: date or datetime column is missing.`));
+      }
+      if (group.datetimeSource === "collection" && isBlank(group.collectionDatetime)) {
+        issues.push(validationIssue("Datasets", `${groupLabel}: collection date/time value is missing.`));
+      }
+      if (group.datetimeTime && isBlank(group.datetimeTimeformat)) {
+        issues.push(validationIssue("Datasets", `${groupLabel}: time format is missing for the separate time column.`));
+      }
+      if (group.preprocessingBol === true && isBlank(group.preprocessingDesc)) {
+        issues.push(validationIssue("Datasets", `${groupLabel}: preprocessing description is missing.`));
+      }
+      if (group.auxiliary !== true && getPrimaryVariables(group).length === 0) {
+        issues.push(validationIssue("Datasets", `${groupLabel}: at least one primary variable should be selected.`));
+      }
+    });
+  });
+
+  return issues;
+}
+
+function renderExportValidationPanel() {
+  if (!exportValidationPanel) {
+    return;
+  }
+
+  const issues = validateBuilder();
+  if (issues.length === 0) {
+    exportValidationPanel.className = "export-validation-panel ok";
+    exportValidationPanel.innerHTML = `
+      <h3>Ready to export</h3>
+      <p>No missing required fields were found by the builder checks.</p>
+    `;
+    return;
+  }
+
+  const grouped = issues.reduce((bySection, issue) => {
+    if (!bySection[issue.section]) {
+      bySection[issue.section] = [];
+    }
+    bySection[issue.section].push(issue.message);
+    return bySection;
+  }, {});
+
+  exportValidationPanel.className = "export-validation-panel warning";
+  exportValidationPanel.innerHTML = `
+    <h3>${issues.length} issue(s) to review before export</h3>
+    <p>Soft warning only: downloads are still available, but these fields may fail the full validator.</p>
+    ${Object.entries(grouped)
+      .map(([section, messages]) => `
+        <strong>${escapeHtml(section)}</strong>
+        <ul>
+          ${messages.map((message) => `<li>${escapeHtml(message)}</li>`).join("")}
+        </ul>
+      `)
+      .join("")}
+  `;
+}
+
+const ZIP_SCHEMA_FILES = [
+  "contributor.schema.json",
+  "dataset.schema.json",
+  "device.schema.json",
+  "device_datasheet.schema.json",
+  "gleam-dp-profile.json",
+  "participant_characteristics.schema.json",
+  "participants.schema.json",
+  "study.schema.json",
+];
+
+async function downloadPackageZip() {
+  try {
+    const files = await buildPackageZipFiles();
+    const zipBlob = createZipBlob(files);
+    downloadBlob("glc-metadata-package.zip", zipBlob);
+  } catch (error) {
+    if (exportValidationPanel) {
+      exportValidationPanel.className = "export-validation-panel warning";
+      exportValidationPanel.innerHTML = `
+        <h3>Could not create zip</h3>
+        <p>${escapeHtml(error.message)}</p>
+      `;
+    }
+  }
+}
+
+async function buildPackageZipFiles() {
+  const files = [
+    {
+      path: "datapackage.json",
+      text: JSON.stringify(buildDataPackage(), null, 2),
+    },
+    {
+      path: "data/study.json",
+      text: JSON.stringify(buildStudyDraft(), null, 2),
+    },
+    {
+      path: "data/participants.csv",
+      text: buildParticipantsCsv(),
+    },
+    {
+      path: "data/devices.json",
+      text: JSON.stringify(buildDevicesDraft(), null, 2),
+    },
+    {
+      path: "data/device_datasheet.json",
+      text: JSON.stringify(buildDatasheetsDraft(), null, 2),
+    },
+    {
+      path: "data/datasets.json",
+      text: JSON.stringify(buildDatasetDraft(), null, 2),
+    },
+    {
+      path: "README.txt",
+      text: [
+        "GLC metadata package generated by the browser metadata builder.",
+        "",
+        "This zip contains generated metadata files and the schema bundle referenced by datapackage.json.",
+        "It does not include the original data files selected in the dataset file assistant.",
+        "Before running the full validator, add referenced data files under the paths declared in data/datasets.json.",
+      ].join("\n"),
+    },
+  ];
+
+  if (buildCharacteristicsRows().length > 0) {
+    files.push({
+      path: "data/participant_characteristics.csv",
+      text: buildCharacteristicsCsv(),
+    });
+  }
+
+  const schemaFiles = await Promise.all(ZIP_SCHEMA_FILES.map(async (filename) => {
+    const response = await fetch(`schemas/2.0.0/${filename}`);
+    if (!response.ok) {
+      throw new Error(`Could not load schema file ${filename}`);
+    }
+    return {
+      path: `schemas/2.0.0/${filename}`,
+      text: await response.text(),
+    };
+  }));
+
+  return files.concat(schemaFiles);
+}
+
+function createZipBlob(files) {
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+
+  files.forEach((file) => {
+    const nameBytes = encodeText(file.path);
+    const dataBytes = encodeText(file.text);
+    const crc = crc32(dataBytes);
+    const { time, date } = zipDateTime(new Date());
+
+    const localHeader = zipHeader(30);
+    writeUint32(localHeader, 0, 0x04034b50);
+    writeUint16(localHeader, 4, 20);
+    writeUint16(localHeader, 6, 0x0800);
+    writeUint16(localHeader, 8, 0);
+    writeUint16(localHeader, 10, time);
+    writeUint16(localHeader, 12, date);
+    writeUint32(localHeader, 14, crc);
+    writeUint32(localHeader, 18, dataBytes.length);
+    writeUint32(localHeader, 22, dataBytes.length);
+    writeUint16(localHeader, 26, nameBytes.length);
+    writeUint16(localHeader, 28, 0);
+
+    localParts.push(localHeader, nameBytes, dataBytes);
+
+    const centralHeader = zipHeader(46);
+    writeUint32(centralHeader, 0, 0x02014b50);
+    writeUint16(centralHeader, 4, 20);
+    writeUint16(centralHeader, 6, 20);
+    writeUint16(centralHeader, 8, 0x0800);
+    writeUint16(centralHeader, 10, 0);
+    writeUint16(centralHeader, 12, time);
+    writeUint16(centralHeader, 14, date);
+    writeUint32(centralHeader, 16, crc);
+    writeUint32(centralHeader, 20, dataBytes.length);
+    writeUint32(centralHeader, 24, dataBytes.length);
+    writeUint16(centralHeader, 28, nameBytes.length);
+    writeUint16(centralHeader, 30, 0);
+    writeUint16(centralHeader, 32, 0);
+    writeUint16(centralHeader, 34, 0);
+    writeUint16(centralHeader, 36, 0);
+    writeUint32(centralHeader, 38, 0);
+    writeUint32(centralHeader, 42, offset);
+
+    centralParts.push(centralHeader, nameBytes);
+    offset += localHeader.length + nameBytes.length + dataBytes.length;
+  });
+
+  const centralSize = centralParts.reduce((total, part) => total + part.length, 0);
+  const endHeader = zipHeader(22);
+  writeUint32(endHeader, 0, 0x06054b50);
+  writeUint16(endHeader, 4, 0);
+  writeUint16(endHeader, 6, 0);
+  writeUint16(endHeader, 8, files.length);
+  writeUint16(endHeader, 10, files.length);
+  writeUint32(endHeader, 12, centralSize);
+  writeUint32(endHeader, 16, offset);
+  writeUint16(endHeader, 20, 0);
+
+  return new Blob([...localParts, ...centralParts, endHeader], { type: "application/zip" });
+}
+
+function encodeText(text) {
+  return new TextEncoder().encode(String(text));
+}
+
+function zipHeader(size) {
+  return new Uint8Array(size);
+}
+
+function writeUint16(bytes, offset, value) {
+  new DataView(bytes.buffer).setUint16(offset, value, true);
+}
+
+function writeUint32(bytes, offset, value) {
+  new DataView(bytes.buffer).setUint32(offset, value >>> 0, true);
+}
+
+function zipDateTime(value) {
+  return {
+    time: (value.getHours() << 11) | (value.getMinutes() << 5) | Math.floor(value.getSeconds() / 2),
+    date: ((value.getFullYear() - 1980) << 9) | ((value.getMonth() + 1) << 5) | value.getDate(),
+  };
+}
+
+function crc32(bytes) {
+  let crc = 0xffffffff;
+  for (let i = 0; i < bytes.length; i += 1) {
+    crc = ZIP_CRC_TABLE[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+const ZIP_CRC_TABLE = Array.from({ length: 256 }, (_, index) => {
+  let crc = index;
+  for (let bit = 0; bit < 8; bit += 1) {
+    crc = crc & 1 ? 0xedb88320 ^ (crc >>> 1) : crc >>> 1;
+  }
+  return crc >>> 0;
+});
 
 function downloadText(filename, text, type) {
   const blob = new Blob([text], { type });
+  downloadBlob(filename, blob);
+}
+
+function downloadBlob(filename, blob) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -2647,8 +3580,9 @@ renderParticipants();
 renderCharacteristics();
 renderDatasheets();
 renderDevices();
+renderDatasetRecords();
+syncControlsFromActiveDataset();
 renderFileGroups();
-syncControlsFromActiveGroup();
 renderTerms();
 renderVariables();
 updateCrossrefOptions();
