@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>GLC Metadata Builder POC</title>
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=20260625-nested-scorecards" />
   </head>
   <body>
     <main class="app-shell">
@@ -248,13 +248,42 @@
                 <span>4</span>
                 <div>
                   <h2>Devices</h2>
-                  <p>Add device records for <code>devices.json</code>. Datasheet IDs come from the next step.</p>
+                  <p>Add device records for <code>devices.json</code>. Datasheet IDs can be completed now or after the datasheet step.</p>
                 </div>
               </div>
+              <div class="file-drop compact-upload">
+                <input id="devices-import" type="file" accept=".csv,.tsv,.json,text/csv,text/tab-separated-values,application/json" />
+                <p id="devices-import-file" class="import-file-label" hidden></p>
+                <p id="devices-import-summary">
+                  Optional: import <code>devices.json</code> or a CSV/TSV device table. Expected fields:
+                  <code>device_internal_id</code>,
+                  <code>device_manufacturer</code>,
+                  <code>device_model</code>,
+                  <code>device_serial_number</code>,
+                  <code>device_calibration_date</code>,
+                  <code>device_firmware_version</code>,
+                  <code>device_datasheet_id</code>,
+                  <code>device_sensors</code>.
+                  Sensor entries can use <code>sensor type | sensor datasheet id</code>, separated by semicolons.
+                </p>
+                <button type="button" class="secondary-button small-button" id="import-devices-button">Import selected devices file</button>
+                <button type="button" class="secondary-button small-button" id="remove-devices-import">Remove imported devices file</button>
+              </div>
+              <div class="validation-summary">
+                Datasheet IDs are pending cross-references: if the matching datasheet has not been added yet, leave the field blank or keep the imported ID and return here after the datasheet step.
+              </div>
               <div id="devices-list" class="card-list"></div>
-              <button type="button" class="secondary-button" id="add-device">Add device</button>
+              <div class="row-actions">
+                <button type="button" class="secondary-button" id="add-device">Add device</button>
+                <button type="button" class="secondary-button danger-button" id="clear-all-devices">Clear all device rows</button>
+              </div>
+              <div class="schema-actions bottom-schema-actions">
+                <span>Download schemas:</span>
+                <button type="button" class="secondary-button small-button" id="download-device-schema">Device</button>
+              </div>
               <div class="actions inline-actions">
                 <button type="button" class="secondary-button" data-prev-step="participants">Back</button>
+                <button type="button" class="secondary-button danger-button" id="clear-devices-page">Clear Devices page</button>
                 <button type="button" data-next-step="datasheets">Next: Datasheets</button>
               </div>
             </section>
@@ -267,10 +296,29 @@
                   <p>Add device or sensor datasheet records referenced by devices.</p>
                 </div>
               </div>
+              <div class="file-drop compact-upload">
+                <input id="datasheets-import" type="file" accept=".csv,.tsv,.json,text/csv,text/tab-separated-values,application/json" multiple />
+                <p id="datasheets-import-file" class="import-file-label" hidden></p>
+                <p id="datasheets-import-summary">
+                  Optional: import <code>device_datasheet.json</code>, <code>sensor_datasheet.json</code>, or a CSV/TSV datasheet table.
+                  Expected fields include <code>datasheet_id</code>, <code>datasheet_manufacturer</code>, <code>datasheet_type</code>,
+                  <code>datasheet_model</code>, <code>datasheet_calibration_interval</code>, spectral sensitivity, calibration fields, and channels.
+                </p>
+                <button type="button" class="secondary-button small-button" id="import-datasheets-button">Import selected datasheet file(s)</button>
+                <button type="button" class="secondary-button small-button" id="remove-datasheets-import">Remove imported datasheet files</button>
+              </div>
               <div id="datasheets-list" class="card-list"></div>
-              <button type="button" class="secondary-button" id="add-datasheet">Add datasheet</button>
+              <div class="row-actions">
+                <button type="button" class="secondary-button" id="add-datasheet">Add datasheet</button>
+                <button type="button" class="secondary-button danger-button" id="clear-all-datasheets">Clear all datasheet rows</button>
+              </div>
+              <div class="schema-actions bottom-schema-actions">
+                <span>Download schemas:</span>
+                <button type="button" class="secondary-button small-button" id="download-datasheet-schema">Device datasheet</button>
+              </div>
               <div class="actions inline-actions">
                 <button type="button" class="secondary-button" data-prev-step="devices">Back</button>
+                <button type="button" class="secondary-button danger-button" id="clear-datasheets-page">Clear Datasheets page</button>
                 <button type="button" data-next-step="datasets">Next: Datasets</button>
               </div>
             </section>
@@ -495,6 +543,6 @@
       </section>
     </main>
 
-    <script src="app.js"></script>
+    <script src="app.js?v=20260625-spectral-editor"></script>
   </body>
 </html>

@@ -706,6 +706,91 @@ code {
   background: #8b4a3d;
 }
 
+.nested-editor {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  background: #eef5f2;
+  overflow: visible;
+}
+
+.nested-editor-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.nested-grid {
+  display: grid;
+  gap: 10px;
+  align-items: start;
+}
+
+.nested-grid-two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.nested-grid-four {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.nested-grid-header {
+  display: none;
+}
+
+.nested-row {
+  padding: 12px;
+  border: 1px solid var(--line);
+  background: #fbfcfb;
+}
+
+.nested-row label {
+  display: block;
+  margin: 0;
+}
+
+.nested-row input,
+.nested-row select {
+  margin-top: 5px;
+  min-width: 0;
+}
+
+.nested-row .remove-row {
+  justify-self: start;
+}
+
+.nested-grid-two.nested-row .remove-row,
+.nested-grid-four.nested-row .remove-row {
+  grid-column: 1 / -1;
+}
+
+.sr-only {
+  position: static;
+  width: auto;
+  height: auto;
+  padding: 0;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+  border: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+@media (max-width: 760px) {
+  .nested-grid-two,
+  .nested-grid-four {
+    grid-template-columns: 1fr;
+  }
+}
+
 .import-file-label {
   display: inline-block;
   width: fit-content;

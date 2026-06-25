@@ -49,7 +49,7 @@ const createDatasheet = () => ({
   type: "",
   model: "",
   calibrationInterval: "",
-  spectralSensitivityText: "450,0.85\n555,1.0",
+  spectralSensitivityText: "",
   linearity: "",
   directionalResponse: "",
   range: "",
@@ -65,6 +65,7 @@ const state = {
   characteristics: [],
   devices: [createDevice()],
   datasheets: [createDatasheet()],
+  datasheetImportedFiles: [],
   fileGroups: [createFileGroup()],
 };
 
@@ -99,7 +100,15 @@ const characteristicsImportFile = document.querySelector("#characteristics-impor
 const characteristicsImportSummary = document.querySelector("#characteristics-import-summary");
 const participantsList = document.querySelector("#participants-list");
 const characteristicsList = document.querySelector("#characteristics-list");
+const devicesImport = document.querySelector("#devices-import");
+const importDevicesButton = document.querySelector("#import-devices-button");
+const devicesImportFile = document.querySelector("#devices-import-file");
+const devicesImportSummary = document.querySelector("#devices-import-summary");
 const devicesList = document.querySelector("#devices-list");
+const datasheetsImport = document.querySelector("#datasheets-import");
+const importDatasheetsButton = document.querySelector("#import-datasheets-button");
+const datasheetsImportFile = document.querySelector("#datasheets-import-file");
+const datasheetsImportSummary = document.querySelector("#datasheets-import-summary");
 const datasheetsList = document.querySelector("#datasheets-list");
 
 const fields = {
@@ -150,6 +159,26 @@ studyImport.addEventListener("change", handleStudyImport);
 contributorsImport.addEventListener("change", handleContributorsImport);
 participantsImport.addEventListener("change", handleParticipantsImport);
 characteristicsImport.addEventListener("change", handleCharacteristicsImport);
+devicesImport.addEventListener("change", handleDevicesImport);
+importDevicesButton.addEventListener("click", () => {
+  const file = devicesImport.files?.[0];
+  if (!file) {
+    devicesImportSummary.textContent = "Choose a devices JSON/CSV/TSV file first, then click Import.";
+    devicesImportSummary.className = "import-summary warning";
+    return;
+  }
+  importDevicesFile(file);
+});
+datasheetsImport.addEventListener("change", handleDatasheetsImport);
+importDatasheetsButton.addEventListener("click", () => {
+  const files = Array.from(datasheetsImport.files || []);
+  if (files.length === 0) {
+    datasheetsImportSummary.textContent = "Choose datasheet JSON/CSV/TSV file(s) first, then click Import.";
+    datasheetsImportSummary.className = "import-summary warning";
+    return;
+  }
+  importDatasheetsFiles(files);
+});
 clearContributorsImportButton.addEventListener("click", clearContributorsImport);
 downloadButton.addEventListener("click", () => downloadText("datasets.json", JSON.stringify(buildDatasetDraft(), null, 2), "application/json"));
 copyButton.addEventListener("click", copyPreview);
@@ -167,7 +196,13 @@ document.querySelector("#clear-all-characteristics").addEventListener("click", (
 document.querySelector("#remove-characteristics-import").addEventListener("click", () => clearAllCharacteristics("Imported characteristics file removed. Add rows manually or import another file."));
 document.querySelector("#clear-participants-page").addEventListener("click", clearParticipantsPage);
 document.querySelector("#add-device").addEventListener("click", addDevice);
+document.querySelector("#clear-all-devices").addEventListener("click", () => clearAllDevices());
+document.querySelector("#remove-devices-import").addEventListener("click", () => clearAllDevices("Imported devices file removed. Add rows manually or import another file."));
+document.querySelector("#clear-devices-page").addEventListener("click", clearDevicesPage);
 document.querySelector("#add-datasheet").addEventListener("click", addDatasheet);
+document.querySelector("#clear-all-datasheets").addEventListener("click", () => clearAllDatasheets());
+document.querySelector("#remove-datasheets-import").addEventListener("click", () => clearAllDatasheets("Imported datasheet file removed. Add rows manually or import another file."));
+document.querySelector("#clear-datasheets-page").addEventListener("click", clearDatasheetsPage);
 document.querySelector("#download-datapackage").addEventListener("click", () => downloadText("datapackage.json", JSON.stringify(buildDataPackage(), null, 2), "application/json"));
 document.querySelector("#download-study").addEventListener("click", () => downloadText("study.json", JSON.stringify(buildStudyDraft(), null, 2), "application/json"));
 document.querySelector("#download-participants").addEventListener("click", () => downloadText("participants.csv", buildParticipantsCsv(), "text/csv"));
@@ -178,6 +213,8 @@ document.querySelector("#download-study-schema").addEventListener("click", () =>
 document.querySelector("#download-contributor-schema").addEventListener("click", () => downloadSchema("contributor.schema.json"));
 document.querySelector("#download-participants-schema").addEventListener("click", () => downloadSchema("participants.schema.json"));
 document.querySelector("#download-characteristics-schema").addEventListener("click", () => downloadSchema("participant_characteristics.schema.json"));
+document.querySelector("#download-device-schema").addEventListener("click", () => downloadSchema("device.schema.json"));
+document.querySelector("#download-datasheet-schema").addEventListener("click", () => downloadSchema("device_datasheet.schema.json"));
 
 document.querySelectorAll("[data-next-step]").forEach((button) => {
   button.addEventListener("click", () => setStep(button.dataset.nextStep));
@@ -250,7 +287,7 @@ function updateCrossrefOptions() {
     setSelectOptions(select, getParticipantIds(), "Select participant");
   });
   document.querySelectorAll(".datasheet-select").forEach((select) => {
-    setSelectOptions(select, getDatasheetIds(), "Select datasheet");
+    setSelectOptions(select, Array.from(new Set([...getDatasheetIds(), select.value].filter(Boolean))), "Select datasheet");
   });
 }
 
@@ -304,11 +341,13 @@ function clearStudyPage() {
 
 async function loadSchemaHelp() {
   try {
-    const [studySchema, contributorSchema, participantsSchema, characteristicsSchema] = await Promise.all([
+    const [studySchema, contributorSchema, participantsSchema, characteristicsSchema, deviceSchema, datasheetSchema] = await Promise.all([
       fetch("schemas/2.0.0/study.schema.json").then((response) => response.json()),
       fetch("schemas/2.0.0/contributor.schema.json").then((response) => response.json()),
       fetch("schemas/2.0.0/participants.schema.json").then((response) => response.json()),
       fetch("schemas/2.0.0/participant_characteristics.schema.json").then((response) => response.json()),
+      fetch("schemas/2.0.0/device.schema.json").then((response) => response.json()),
+      fetch("schemas/2.0.0/device_datasheet.schema.json").then((response) => response.json()),
     ]);
 
     applySchemaHelp(studySchema, {
@@ -332,6 +371,8 @@ async function loadSchemaHelp() {
     applyStudyGroupSchemaHelp(studySchema);
     applyTabularSchemaHelp(participantsSchema, "participantHelp");
     applyTabularSchemaHelp(characteristicsSchema, "characteristicHelp");
+    applyDeviceSchemaHelp(deviceSchema);
+    applyDatasheetSchemaHelp(datasheetSchema);
   } catch (error) {
     console.warn("Schema help could not be loaded.", error);
   }
@@ -378,6 +419,19 @@ function applyTabularSchemaHelp(schema, stateKey) {
   }, {});
   renderParticipants();
   renderCharacteristics();
+}
+
+function applyDeviceSchemaHelp(schema) {
+  state.deviceHelp = schema?.properties || {};
+  state.deviceSensorHelp = schema?.properties?.device_sensors?.items?.properties || {};
+  renderDevices();
+}
+
+function applyDatasheetSchemaHelp(schema) {
+  state.datasheetHelp = schema?.properties || {};
+  state.datasheetSpectralHelp = schema?.properties?.datasheet_calibration_spectral_sensitivity?.items?.properties || {};
+  state.datasheetChannelHelp = schema?.properties?.datasheet_channel?.items?.properties || {};
+  renderDatasheets();
 }
 
 function schemaHelpTitle(property, fallback) {
@@ -834,6 +888,287 @@ function clearAllCharacteristics(message = "All characteristic rows cleared. Add
   updatePreview();
 }
 
+async function handleDevicesImport(event) {
+  const file = event.target.files?.[0];
+  if (!file) {
+    return;
+  }
+  await importDevicesFile(file);
+}
+
+async function importDevicesFile(file) {
+  devicesImportSummary.textContent = `Reading ${file.name}...`;
+  devicesImportSummary.className = "import-summary";
+
+  try {
+    const text = await file.text();
+    state.devices = isJsonFile(file)
+      ? devicesFromJson(text)
+      : devicesFromTable(text);
+
+    if (state.devices.length === 0) {
+      throw new Error("No device rows were found in the uploaded file.");
+    }
+
+    renderDevices();
+    updateCrossrefOptions();
+    updatePreview();
+    showImportFile(devicesImportFile, file.name);
+    devicesImportSummary.textContent = `Imported ${state.devices.length} device row(s) from ${file.name}. Datasheet IDs can be finalized after the datasheet step.`;
+    devicesImportSummary.className = "import-summary ok";
+  } catch (error) {
+    devicesImportSummary.textContent = `Could not import ${file.name}: ${error.message}`;
+    devicesImportSummary.className = "import-summary warning";
+  } finally {
+    devicesImport.value = "";
+  }
+}
+
+function devicesFromJson(text) {
+  const parsed = JSON.parse(text);
+  const rows = Array.isArray(parsed)
+    ? parsed
+    : Array.isArray(parsed?.devices)
+      ? parsed.devices
+      : parsed?.device_internal_id || parsed?.device_id || parsed?.id
+        ? [parsed]
+        : null;
+
+  if (!rows) {
+    throw new Error("Expected devices.json as an array, a single device object, or an object with a devices array.");
+  }
+
+  return rows.map(deviceFromSchema);
+}
+
+function devicesFromTable(text) {
+  return parseTableText(text).map(deviceFromSchema);
+}
+
+function deviceFromSchema(row) {
+  return {
+    id: row.device_internal_id || row.id || row.device_id || "",
+    manufacturer: row.device_manufacturer || row.manufacturer || "",
+    model: row.device_model || row.model || "",
+    serialNumber: row.device_serial_number || row.serial_number || "",
+    calibrationDate: row.device_calibration_date || row.calibration_date || "",
+    firmwareVersion: row.device_firmware_version || row.firmware_version || "",
+    datasheetId: row.device_datasheet_id || row.datasheet_id || "",
+    sensorsText: sensorsToText(row.device_sensors || row.sensors || ""),
+  };
+}
+
+function sensorsToText(sensors) {
+  if (Array.isArray(sensors)) {
+    return sensors
+      .map((sensor) => {
+        if (typeof sensor === "string") {
+          return sensor.trim();
+        }
+        const type = sensor?.device_sensor_type || sensor?.sensor_type || "";
+        const datasheetId = sensor?.device_sensor_datasheet_id || sensor?.sensor_datasheet_id || "";
+        return [type, datasheetId].filter(Boolean).join(" | ");
+      })
+      .filter(Boolean)
+      .join("\n");
+  }
+  return String(sensors || "")
+    .split(";")
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .join("\n");
+}
+
+function clearDevicesPage() {
+  clearAllDevices("Devices page cleared. Add rows manually or import a devices file.");
+}
+
+function clearAllDevices(message = "All device rows cleared. Add rows manually or import another file.") {
+  message = normalizeStatusMessage(message, "All device rows cleared. Add rows manually or import another file.");
+  state.devices = [];
+  devicesImport.value = "";
+  hideImportFile(devicesImportFile);
+  devicesImportSummary.textContent = message;
+  devicesImportSummary.className = "import-summary";
+  renderDevices();
+  updateCrossrefOptions();
+  updatePreview();
+}
+
+async function handleDatasheetsImport(event) {
+  const files = Array.from(event.target.files || []);
+  if (files.length === 0) {
+    return;
+  }
+  await importDatasheetsFiles(files);
+}
+
+async function importDatasheetsFiles(files) {
+  datasheetsImportSummary.textContent = `Reading ${files.length} datasheet file(s)...`;
+  datasheetsImportSummary.className = "import-summary";
+
+  try {
+    const parsedRows = [];
+    for (const file of files) {
+      const text = await file.text();
+      const rows = isJsonFile(file)
+        ? datasheetsFromJson(text)
+        : datasheetsFromTable(text);
+      parsedRows.push(...rows);
+      if (!state.datasheetImportedFiles.includes(file.name)) {
+        state.datasheetImportedFiles.push(file.name);
+      }
+    }
+
+    if (parsedRows.length === 0) {
+      throw new Error("No datasheet rows were found in the uploaded file.");
+    }
+
+    const result = upsertDatasheets(parsedRows);
+    renderDatasheets();
+    renderDevices();
+    updateCrossrefOptions();
+    updatePreview();
+    showImportedFiles(datasheetsImportFile, state.datasheetImportedFiles);
+    datasheetsImportSummary.textContent = `Imported ${parsedRows.length} datasheet row(s): ${result.added} added, ${result.updated} updated. Types: ${summarizeDatasheetTypes(parsedRows)}.`;
+    datasheetsImportSummary.className = "import-summary ok";
+  } catch (error) {
+    datasheetsImportSummary.textContent = `Could not import datasheet file(s): ${error.message}`;
+    datasheetsImportSummary.className = "import-summary warning";
+  } finally {
+    datasheetsImport.value = "";
+  }
+}
+
+function upsertDatasheets(rows) {
+  let added = 0;
+  let updated = 0;
+  const hasExistingContent = state.datasheets.some((entry) => entry.id || entry.manufacturer || entry.model || entry.type);
+
+  if (!hasExistingContent) {
+    state.datasheets = [];
+  }
+
+  rows.forEach((row) => {
+    const existingIndex = row.id
+      ? state.datasheets.findIndex((entry) => entry.id === row.id)
+      : -1;
+
+    if (existingIndex >= 0) {
+      state.datasheets[existingIndex] = row;
+      updated += 1;
+    } else {
+      state.datasheets.push(row);
+      added += 1;
+    }
+  });
+
+  return { added, updated };
+}
+
+function showImportedFiles(element, fileNames) {
+  element.hidden = false;
+  element.textContent = `Imported files: ${fileNames.join(", ")}`;
+}
+
+function summarizeDatasheetTypes(rows) {
+  const types = Array.from(new Set(rows.map((row) => row.type).filter(Boolean)));
+  return types.length ? types.join(", ") : "not specified";
+}
+
+function datasheetsFromJson(text) {
+  const parsed = JSON.parse(text);
+  const rows = Array.isArray(parsed)
+    ? parsed
+    : Array.isArray(parsed?.datasheets)
+      ? parsed.datasheets
+      : parsed?.datasheet_id || parsed?.id
+        ? [parsed]
+        : null;
+
+  if (!rows) {
+    throw new Error("Expected a datasheet array, a single datasheet object, or an object with a datasheets array.");
+  }
+
+  return rows.map(datasheetFromSchema);
+}
+
+function datasheetsFromTable(text) {
+  return parseTableText(text).map(datasheetFromSchema);
+}
+
+function datasheetFromSchema(row) {
+  return {
+    id: row.datasheet_id || row.id || "",
+    version: row.datasheet_version || row.version || "",
+    manufacturer: row.datasheet_manufacturer || row.manufacturer || "",
+    type: row.datasheet_type || row.type || "",
+    model: row.datasheet_model || row.model || "",
+    calibrationInterval: row.datasheet_calibration_interval ?? row.calibration_interval ?? "",
+    spectralSensitivityText: spectralSensitivityToText(row.datasheet_calibration_spectral_sensitivity || row.spectral_sensitivity || ""),
+    linearity: row.datasheet_calibration_linearity || row.linearity || "",
+    directionalResponse: row.datasheet_calibration_directional_response || row.directional_response || "",
+    range: row.datasheet_calibration_range || row.calibration_range || row.range || "",
+    channelsText: channelsToText(row.datasheet_channel || row.channels || ""),
+  };
+}
+
+function spectralSensitivityToText(value) {
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => {
+        const wavelength = entry?.datasheet_calibration_spectral_sensitivity_wavelength ?? entry?.wavelength ?? "";
+        const relative = entry?.datasheet_calibration_spectral_sensitivity_relative ?? entry?.relative ?? "";
+        return wavelength !== "" || relative !== "" ? `${wavelength},${relative}` : "";
+      })
+      .filter(Boolean)
+      .join("\n");
+  }
+  return String(value || "")
+    .split(";")
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .join("\n");
+}
+
+function channelsToText(value) {
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => {
+        const nr = entry?.datasheet_channel_nr ?? entry?.channel_nr ?? "";
+        const name = entry?.datasheet_channel_name || entry?.channel_name || "";
+        const unit = entry?.datasheet_channel_unit || entry?.channel_unit || "";
+        const description = entry?.datasheet_channel_description || entry?.channel_description || "";
+        return [nr, name, unit, description].filter((part) => part !== "").join(" | ");
+      })
+      .filter(Boolean)
+      .join("\n");
+  }
+  return String(value || "")
+    .split(";")
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .join("\n");
+}
+
+function clearDatasheetsPage() {
+  clearAllDatasheets("Datasheets page cleared. Add rows manually or import a datasheet file.");
+}
+
+function clearAllDatasheets(message = "All datasheet rows cleared. Add rows manually or import another file.") {
+  message = normalizeStatusMessage(message, "All datasheet rows cleared. Add rows manually or import another file.");
+  state.datasheets = [];
+  state.datasheetImportedFiles = [];
+  datasheetsImport.value = "";
+  hideImportFile(datasheetsImportFile);
+  datasheetsImportSummary.textContent = message;
+  datasheetsImportSummary.className = "import-summary";
+  renderDatasheets();
+  renderDevices();
+  updateCrossrefOptions();
+  updatePreview();
+}
+
 function normalizeStatusMessage(message, fallback) {
   return typeof message === "string" ? message : fallback;
 }
@@ -961,27 +1296,67 @@ function renderDevices() {
   devicesList.innerHTML = "";
   state.devices.forEach((device, index) => {
     const card = document.createElement("div");
-    card.className = "record-card";
+    card.className = "participant-card";
+    const help = state.deviceHelp || {};
+    const sensorHelp = state.deviceSensorHelp || {};
+    const idHelp = schemaHelpTitle(help.device_internal_id, "Unique internal identifier for the device");
+    const manufacturerHelp = schemaHelpTitle(help.device_manufacturer, "Manufacturer of the device");
+    const modelHelp = schemaHelpTitle(help.device_model, "Model name or number of the device");
+    const serialNumberHelp = schemaHelpTitle(help.device_serial_number, "Serial number assigned to the individual device");
+    const calibrationDateHelp = schemaHelpTitle(help.device_calibration_date, "Date of last calibration, or blank if unknown");
+    const firmwareHelp = schemaHelpTitle(help.device_firmware_version, "Firmware version installed on the device");
+    const datasheetHelp = schemaHelpTitle(help.device_datasheet_id, "Reference to the general device datasheet. This can be completed after the datasheet step.");
+    const sensorTypeHelp = schemaHelpTitle(sensorHelp.device_sensor_type, "Sensor type, e.g. photopic light sensor");
+    const sensorDatasheetHelp = schemaHelpTitle(sensorHelp.device_sensor_datasheet_id, "Optional sensor-specific datasheet ID");
+    const sensorsHelp = `${schemaHelpTitle(help.device_sensors, "List of sensors contained within the device")} Add one row per sensor.`;
     card.innerHTML = `
       <div class="record-card-heading">
         <h3>Device ${index + 1}</h3>
-        <button type="button" class="remove-row" ${state.devices.length === 1 ? "disabled" : ""}>Remove</button>
+        <button type="button" class="remove-row">Remove device</button>
       </div>
-      <div class="grid">
-        <label>Device ID <span class="required">*</span><input data-field="id" value="${escapeHtml(device.id)}" placeholder="D001" /></label>
-        <label>Manufacturer <span class="required">*</span><input data-field="manufacturer" value="${escapeHtml(device.manufacturer)}" placeholder="ActLumus" /></label>
-        <label>Model <span class="required">*</span><input data-field="model" value="${escapeHtml(device.model)}" placeholder="Model name" /></label>
-        <label>Serial number <span class="required">*</span><input data-field="serialNumber" value="${escapeHtml(device.serialNumber)}" placeholder="SN123" /></label>
-        <label>Calibration date <span class="required">*</span><input data-field="calibrationDate" value="${escapeHtml(device.calibrationDate)}" placeholder="YYYY-MM-DD or blank if unknown" /></label>
-        <label>Firmware version<input data-field="firmwareVersion" value="${escapeHtml(device.firmwareVersion)}" placeholder="v1.2.3" /></label>
-        <label class="wide">Datasheet ID <span class="required">*</span><select class="datasheet-select" data-field="datasheetId"></select></label>
-        <label class="wide">Sensors, one per line<textarea data-field="sensorsText" rows="2" placeholder="photopic light sensor | sensor-datasheet-id">${escapeHtml(device.sensorsText)}</textarea></label>
+      <div class="participant-fields">
+        <label title="${escapeHtml(idHelp)}">Device ID <span class="required">*</span> ${helpMarker(idHelp)}
+          <input data-field="id" value="${escapeHtml(device.id)}" placeholder="D001" title="${escapeHtml(idHelp)}" />
+        </label>
+        <label title="${escapeHtml(manufacturerHelp)}">Manufacturer <span class="required">*</span> ${helpMarker(manufacturerHelp)}
+          <input data-field="manufacturer" value="${escapeHtml(device.manufacturer)}" placeholder="ActLumus" title="${escapeHtml(manufacturerHelp)}" />
+        </label>
+        <label title="${escapeHtml(modelHelp)}">Model <span class="required">*</span> ${helpMarker(modelHelp)}
+          <input data-field="model" value="${escapeHtml(device.model)}" placeholder="Model name" title="${escapeHtml(modelHelp)}" />
+        </label>
+        <label title="${escapeHtml(serialNumberHelp)}">Serial number <span class="required">*</span> ${helpMarker(serialNumberHelp)}
+          <input data-field="serialNumber" value="${escapeHtml(device.serialNumber)}" placeholder="SN123" title="${escapeHtml(serialNumberHelp)}" />
+        </label>
+        <label title="${escapeHtml(calibrationDateHelp)}">Calibration date <span class="required">*</span> ${helpMarker(calibrationDateHelp)}
+          <input data-field="calibrationDate" value="${escapeHtml(device.calibrationDate)}" placeholder="YYYY-MM-DD or blank if unknown" title="${escapeHtml(calibrationDateHelp)}" />
+        </label>
+        <label title="${escapeHtml(firmwareHelp)}">Firmware version ${helpMarker(firmwareHelp)}
+          <input data-field="firmwareVersion" value="${escapeHtml(device.firmwareVersion)}" placeholder="v1.2.3" title="${escapeHtml(firmwareHelp)}" />
+        </label>
+        <label class="wide" title="${escapeHtml(datasheetHelp)}">Datasheet ID <span class="required">*</span> ${helpMarker(datasheetHelp)}
+          <select class="datasheet-select" data-field="datasheetId" title="${escapeHtml(datasheetHelp)}"></select>
+          <span class="field-help">If the datasheet has not been created yet, leave this blank or keep an imported pending ID and return after the Datasheets step.</span>
+        </label>
+        <div class="wide nested-editor" title="${escapeHtml(sensorsHelp)}">
+          <div class="nested-editor-heading">
+            <span>Sensors ${helpMarker(sensorsHelp)}</span>
+            <button type="button" class="secondary-button small-button add-sensor-row">Add sensor</button>
+          </div>
+          <div class="nested-grid nested-grid-two nested-grid-header" aria-hidden="true">
+            <span>Device sensor type <span class="required">*</span></span>
+            <span>Sensor datasheet ID</span>
+            <span></span>
+          </div>
+          <div class="device-sensors-list"></div>
+          <span class="field-help">Sensor type is required. Sensor datasheet ID is optional and can be completed after datasheet records are added.</span>
+        </div>
       </div>
     `;
     const select = card.querySelector("select");
-    setSelectOptions(select, getDatasheetIds(), "Add datasheet first");
+    setSelectOptions(select, Array.from(new Set([...getDatasheetIds(), device.datasheetId].filter(Boolean))), "Add or import datasheet first");
     select.value = device.datasheetId;
-    card.querySelectorAll("input, textarea, select").forEach((input) => {
+    setupDeviceSensorEditor(card, device, sensorTypeHelp, sensorDatasheetHelp);
+    card.querySelectorAll("input[data-field], textarea[data-field], select[data-field]").forEach((input) => {
       input.addEventListener("input", () => {
         device[input.dataset.field] = input.value.trim();
         updateCrossrefOptions();
@@ -1010,31 +1385,173 @@ function addDevice() {
   updatePreview();
 }
 
+function setupDeviceSensorEditor(card, device, sensorTypeHelp, sensorDatasheetHelp) {
+  const list = card.querySelector(".device-sensors-list");
+  const addButton = card.querySelector(".add-sensor-row");
+  let rows = parseDeviceSensorRows(device.sensorsText);
+
+  const renderRows = () => {
+    list.innerHTML = "";
+    rows.forEach((row, rowIndex) => {
+      const wrapper = document.createElement("div");
+      wrapper.className = "nested-grid nested-grid-two nested-row";
+      wrapper.innerHTML = `
+        <label title="${escapeHtml(sensorTypeHelp)}">
+          <span class="sr-only">Device sensor type</span>
+          <input data-sensor-field="type" value="${escapeHtml(row.type)}" placeholder="Photopic light sensor" title="${escapeHtml(sensorTypeHelp)}" />
+        </label>
+        <label title="${escapeHtml(sensorDatasheetHelp)}">
+          <span class="sr-only">Sensor datasheet ID</span>
+          <select data-sensor-field="datasheetId" title="${escapeHtml(sensorDatasheetHelp)}"></select>
+        </label>
+        <button type="button" class="remove-row small-button">Remove</button>
+      `;
+      const datasheetSelect = wrapper.querySelector("select");
+      setSelectOptions(datasheetSelect, Array.from(new Set([...getDatasheetIds(), row.datasheetId].filter(Boolean))), "Optional datasheet");
+      datasheetSelect.value = row.datasheetId;
+      wrapper.querySelectorAll("input, select").forEach((input) => {
+        input.addEventListener("input", () => {
+          rows[rowIndex][input.dataset.sensorField] = input.value.trim();
+          device.sensorsText = deviceSensorRowsToText(rows);
+          updatePreview();
+        });
+        input.addEventListener("change", () => {
+          rows[rowIndex][input.dataset.sensorField] = input.value.trim();
+          device.sensorsText = deviceSensorRowsToText(rows);
+          updatePreview();
+        });
+      });
+      wrapper.querySelector("button").addEventListener("click", () => {
+        rows.splice(rowIndex, 1);
+        device.sensorsText = deviceSensorRowsToText(rows);
+        renderRows();
+        updatePreview();
+      });
+      list.appendChild(wrapper);
+    });
+  };
+
+  addButton.addEventListener("click", () => {
+    rows.push({ type: "", datasheetId: "" });
+    device.sensorsText = deviceSensorRowsToText(rows);
+    renderRows();
+    updatePreview();
+  });
+
+  renderRows();
+}
+
+function parseDeviceSensorRows(text) {
+  const rows = String(text || "")
+    .split(/\r?\n|;/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [type, datasheetId] = line.split("|").map((part) => part.trim());
+      return { type: type || "", datasheetId: datasheetId || "" };
+    });
+  return rows.length ? rows : [{ type: "", datasheetId: "" }];
+}
+
+function deviceSensorRowsToText(rows) {
+  return rows
+    .map((row) => [row.type, row.datasheetId].filter(Boolean).join(" | "))
+    .filter(Boolean)
+    .join("\n");
+}
+
 function renderDatasheets() {
   datasheetsList.innerHTML = "";
   state.datasheets.forEach((datasheet, index) => {
     const card = document.createElement("div");
-    card.className = "record-card";
+    card.className = "participant-card";
+    const help = state.datasheetHelp || {};
+    const spectralHelp = state.datasheetSpectralHelp || {};
+    const channelHelp = state.datasheetChannelHelp || {};
+    const idHelp = schemaHelpTitle(help.datasheet_id, "Datasheet ID referenced by devices");
+    const versionHelp = schemaHelpTitle(help.datasheet_version, "Version label for this datasheet");
+    const manufacturerHelp = schemaHelpTitle(help.datasheet_manufacturer, "Manufacturer of the sensor or device");
+    const typeHelp = schemaHelpTitle(help.datasheet_type, "Type of sensor or device");
+    const modelHelp = schemaHelpTitle(help.datasheet_model, "Model of the sensor or device");
+    const intervalHelp = schemaHelpTitle(help.datasheet_calibration_interval, "Required device calibration interval in days");
+    const spectralHelpText = `${schemaHelpTitle(help.datasheet_calibration_spectral_sensitivity, "Spectral sensitivity calibration values")} Use one wavelength,relative pair per line.`;
+    const wavelengthHelp = schemaHelpTitle(spectralHelp.datasheet_calibration_spectral_sensitivity_wavelength, "Wavelength in nm");
+    const relativeHelp = schemaHelpTitle(spectralHelp.datasheet_calibration_spectral_sensitivity_relative, "Relative spectral sensitivity");
+    const linearityHelp = schemaHelpTitle(help.datasheet_calibration_linearity, "Linearity calibration information");
+    const directionalHelp = schemaHelpTitle(help.datasheet_calibration_directional_response, "Directional response calibration information");
+    const rangeHelp = schemaHelpTitle(help.datasheet_calibration_range, "Response range information");
+    const channelsHelp = `${schemaHelpTitle(help.datasheet_channel, "Information on channels")} Add one row per channel.`;
+    const channelNrHelp = schemaHelpTitle(channelHelp.datasheet_channel_nr, "Channel number");
+    const channelNameHelp = schemaHelpTitle(channelHelp.datasheet_channel_name, "Channel name as it appears in exported files");
+    const channelUnitHelp = schemaHelpTitle(channelHelp.datasheet_channel_unit, "Channel unit");
+    const channelDescriptionHelp = schemaHelpTitle(channelHelp.datasheet_channel_description, "Channel description");
+    const headingLabel = datasheet.type ? `Datasheet ${index + 1}: ${datasheet.type}` : `Datasheet ${index + 1}`;
     card.innerHTML = `
       <div class="record-card-heading">
-        <h3>Datasheet ${index + 1}</h3>
-        <button type="button" class="remove-row" ${state.datasheets.length === 1 ? "disabled" : ""}>Remove</button>
+        <h3>${escapeHtml(headingLabel)}</h3>
+        <button type="button" class="remove-row">Remove datasheet</button>
       </div>
-      <div class="grid">
-        <label>Datasheet ID <span class="required">*</span><input data-field="id" value="${escapeHtml(datasheet.id)}" placeholder="actlumus-v1.0" /></label>
-        <label>Version<input data-field="version" value="${escapeHtml(datasheet.version)}" placeholder="1.0" /></label>
-        <label>Manufacturer <span class="required">*</span><input data-field="manufacturer" value="${escapeHtml(datasheet.manufacturer)}" placeholder="ActLumus" /></label>
-        <label>Type <span class="required">*</span><input data-field="type" value="${escapeHtml(datasheet.type)}" placeholder="Wearable light sensor" /></label>
-        <label>Model <span class="required">*</span><input data-field="model" value="${escapeHtml(datasheet.model)}" placeholder="Model name" /></label>
-        <label>Calibration interval, days <span class="required">*</span><input data-field="calibrationInterval" type="number" min="0" value="${escapeHtml(datasheet.calibrationInterval)}" placeholder="365" /></label>
-        <label class="wide">Spectral sensitivity <span class="required">*</span><textarea data-field="spectralSensitivityText" rows="3" placeholder="One wavelength,relative pair per line: 450,0.85">${escapeHtml(datasheet.spectralSensitivityText)}</textarea></label>
-        <label>Linearity <span class="required">*</span><input data-field="linearity" value="${escapeHtml(datasheet.linearity)}" placeholder="Example: +/-2%" /></label>
-        <label>Directional response <span class="required">*</span><input data-field="directionalResponse" value="${escapeHtml(datasheet.directionalResponse)}" placeholder="Example: cosine corrected" /></label>
-        <label>Calibration range <span class="required">*</span><input data-field="range" value="${escapeHtml(datasheet.range)}" placeholder="Example: 0-100000 lux" /></label>
-        <label class="wide">Channels, one per line<textarea data-field="channelsText" rows="2" placeholder="1 | broadband | lux | Broadband visible light">${escapeHtml(datasheet.channelsText)}</textarea></label>
+      <div class="participant-fields">
+        <label title="${escapeHtml(idHelp)}">Datasheet ID <span class="required">*</span> ${helpMarker(idHelp)}
+          <input data-field="id" value="${escapeHtml(datasheet.id)}" placeholder="lumitech-lt100-v1.0" title="${escapeHtml(idHelp)}" />
+        </label>
+        <label title="${escapeHtml(versionHelp)}">Version ${helpMarker(versionHelp)}
+          <input data-field="version" value="${escapeHtml(datasheet.version)}" placeholder="1.0" title="${escapeHtml(versionHelp)}" />
+        </label>
+        <label title="${escapeHtml(manufacturerHelp)}">Manufacturer <span class="required">*</span> ${helpMarker(manufacturerHelp)}
+          <input data-field="manufacturer" value="${escapeHtml(datasheet.manufacturer)}" placeholder="Lumitech" title="${escapeHtml(manufacturerHelp)}" />
+        </label>
+        <label title="${escapeHtml(typeHelp)}">Type <span class="required">*</span> ${helpMarker(typeHelp)}
+          <input data-field="type" value="${escapeHtml(datasheet.type)}" placeholder="Wearable light sensor" title="${escapeHtml(typeHelp)}" />
+        </label>
+        <label title="${escapeHtml(modelHelp)}">Model <span class="required">*</span> ${helpMarker(modelHelp)}
+          <input data-field="model" value="${escapeHtml(datasheet.model)}" placeholder="LT-100" title="${escapeHtml(modelHelp)}" />
+        </label>
+        <label title="${escapeHtml(intervalHelp)}">Calibration interval, days <span class="required">*</span> ${helpMarker(intervalHelp)}
+          <input data-field="calibrationInterval" type="number" min="0" value="${escapeHtml(datasheet.calibrationInterval)}" placeholder="365" title="${escapeHtml(intervalHelp)}" />
+        </label>
+        <div class="wide nested-editor" title="${escapeHtml(spectralHelpText)}">
+          <div class="nested-editor-heading">
+            <span>Spectral sensitivity <span class="required">*</span> ${helpMarker(spectralHelpText)}</span>
+            <button type="button" class="secondary-button small-button add-spectral-row">Add wavelength row</button>
+          </div>
+          <div class="nested-grid nested-grid-two nested-grid-header" aria-hidden="true">
+            <span>Wavelength, nm <span class="required">*</span></span>
+            <span>Relative sensitivity <span class="required">*</span></span>
+            <span></span>
+          </div>
+          <div class="datasheet-spectral-list"></div>
+          <span class="field-help">Add one row for each wavelength and its relative sensitivity value.</span>
+        </div>
+        <label title="${escapeHtml(linearityHelp)}">Linearity <span class="required">*</span> ${helpMarker(linearityHelp)}
+          <input data-field="linearity" value="${escapeHtml(datasheet.linearity)}" placeholder="Example: +/-2%" title="${escapeHtml(linearityHelp)}" />
+        </label>
+        <label title="${escapeHtml(directionalHelp)}">Directional response <span class="required">*</span> ${helpMarker(directionalHelp)}
+          <input data-field="directionalResponse" value="${escapeHtml(datasheet.directionalResponse)}" placeholder="Example: cosine corrected" title="${escapeHtml(directionalHelp)}" />
+        </label>
+        <label title="${escapeHtml(rangeHelp)}">Calibration range <span class="required">*</span> ${helpMarker(rangeHelp)}
+          <input data-field="range" value="${escapeHtml(datasheet.range)}" placeholder="Example: 0-100000 lux" title="${escapeHtml(rangeHelp)}" />
+        </label>
+        <div class="wide nested-editor" title="${escapeHtml(channelsHelp)}">
+          <div class="nested-editor-heading">
+            <span>Channels ${helpMarker(channelsHelp)}</span>
+            <button type="button" class="secondary-button small-button add-channel-row">Add channel</button>
+          </div>
+          <div class="nested-grid nested-grid-four nested-grid-header" aria-hidden="true">
+            <span>Channel nr <span class="required">*</span></span>
+            <span>Channel name <span class="required">*</span></span>
+            <span>Unit</span>
+            <span>Description</span>
+            <span></span>
+          </div>
+          <div class="datasheet-channels-list"></div>
+          <span class="field-help">Channel number and channel name are required. Unit and description are optional.</span>
+        </div>
       </div>
     `;
-    card.querySelectorAll("input, textarea").forEach((input) => {
+    setupDatasheetSpectralEditor(card, datasheet, wavelengthHelp, relativeHelp);
+    setupDatasheetChannelEditor(card, datasheet, channelNrHelp, channelNameHelp, channelUnitHelp, channelDescriptionHelp);
+    card.querySelectorAll("input[data-field], textarea[data-field]").forEach((input) => {
       input.addEventListener("input", () => {
         datasheet[input.dataset.field] = input.value.trim();
         renderDevices();
@@ -1058,6 +1575,156 @@ function addDatasheet() {
   renderDatasheets();
   updateCrossrefOptions();
   updatePreview();
+}
+
+function setupDatasheetSpectralEditor(card, datasheet, wavelengthHelp, relativeHelp) {
+  const list = card.querySelector(".datasheet-spectral-list");
+  const addButton = card.querySelector(".add-spectral-row");
+  let rows = parseDatasheetSpectralRows(datasheet.spectralSensitivityText);
+
+  const renderRows = () => {
+    list.innerHTML = "";
+    rows.forEach((row, rowIndex) => {
+      const wrapper = document.createElement("div");
+      wrapper.className = "nested-grid nested-grid-two nested-row";
+      wrapper.innerHTML = `
+        <label title="${escapeHtml(wavelengthHelp)}">
+          <span class="sr-only">Wavelength</span>
+          <input data-spectral-field="wavelength" type="number" min="0" step="any" value="${escapeHtml(row.wavelength)}" placeholder="450" title="${escapeHtml(wavelengthHelp)}" />
+        </label>
+        <label title="${escapeHtml(relativeHelp)}">
+          <span class="sr-only">Relative sensitivity</span>
+          <input data-spectral-field="relative" type="number" step="any" value="${escapeHtml(row.relative)}" placeholder="0.85" title="${escapeHtml(relativeHelp)}" />
+        </label>
+        <button type="button" class="remove-row small-button">Remove</button>
+      `;
+      wrapper.querySelectorAll("input").forEach((input) => {
+        input.addEventListener("input", () => {
+          rows[rowIndex][input.dataset.spectralField] = input.value.trim();
+          datasheet.spectralSensitivityText = datasheetSpectralRowsToText(rows);
+          updatePreview();
+        });
+      });
+      wrapper.querySelector("button").addEventListener("click", () => {
+        rows.splice(rowIndex, 1);
+        datasheet.spectralSensitivityText = datasheetSpectralRowsToText(rows);
+        renderRows();
+        updatePreview();
+      });
+      list.appendChild(wrapper);
+    });
+  };
+
+  addButton.addEventListener("click", () => {
+    rows.push({ wavelength: "", relative: "" });
+    datasheet.spectralSensitivityText = datasheetSpectralRowsToText(rows);
+    renderRows();
+    updatePreview();
+  });
+
+  renderRows();
+}
+
+function parseDatasheetSpectralRows(text) {
+  const rows = String(text || "")
+    .split(/\r?\n|;/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [wavelength, relative] = line.split(/[|,]/).map((part) => part.trim());
+      return {
+        wavelength: wavelength || "",
+        relative: relative || "",
+      };
+    });
+  return rows.length ? rows : [{ wavelength: "", relative: "" }];
+}
+
+function datasheetSpectralRowsToText(rows) {
+  return rows
+    .map((row) => [row.wavelength, row.relative].filter(Boolean).join(","))
+    .filter(Boolean)
+    .join("\n");
+}
+
+function setupDatasheetChannelEditor(card, datasheet, channelNrHelp, channelNameHelp, channelUnitHelp, channelDescriptionHelp) {
+  const list = card.querySelector(".datasheet-channels-list");
+  const addButton = card.querySelector(".add-channel-row");
+  let rows = parseDatasheetChannelRows(datasheet.channelsText);
+
+  const renderRows = () => {
+    list.innerHTML = "";
+    rows.forEach((row, rowIndex) => {
+      const wrapper = document.createElement("div");
+      wrapper.className = "nested-grid nested-grid-four nested-row";
+      wrapper.innerHTML = `
+        <label title="${escapeHtml(channelNrHelp)}">
+          <span class="sr-only">Channel number</span>
+          <input data-channel-field="nr" type="number" min="1" value="${escapeHtml(row.nr)}" placeholder="1" title="${escapeHtml(channelNrHelp)}" />
+        </label>
+        <label title="${escapeHtml(channelNameHelp)}">
+          <span class="sr-only">Channel name</span>
+          <input data-channel-field="name" value="${escapeHtml(row.name)}" placeholder="broadband" title="${escapeHtml(channelNameHelp)}" />
+        </label>
+        <label title="${escapeHtml(channelUnitHelp)}">
+          <span class="sr-only">Channel unit</span>
+          <input data-channel-field="unit" value="${escapeHtml(row.unit)}" placeholder="lux" title="${escapeHtml(channelUnitHelp)}" />
+        </label>
+        <label title="${escapeHtml(channelDescriptionHelp)}">
+          <span class="sr-only">Channel description</span>
+          <input data-channel-field="description" value="${escapeHtml(row.description)}" placeholder="Broadband visible light" title="${escapeHtml(channelDescriptionHelp)}" />
+        </label>
+        <button type="button" class="remove-row small-button">Remove</button>
+      `;
+      wrapper.querySelectorAll("input").forEach((input) => {
+        input.addEventListener("input", () => {
+          rows[rowIndex][input.dataset.channelField] = input.value.trim();
+          datasheet.channelsText = datasheetChannelRowsToText(rows);
+          updatePreview();
+        });
+      });
+      wrapper.querySelector("button").addEventListener("click", () => {
+        rows.splice(rowIndex, 1);
+        datasheet.channelsText = datasheetChannelRowsToText(rows);
+        renderRows();
+        updatePreview();
+      });
+      list.appendChild(wrapper);
+    });
+  };
+
+  addButton.addEventListener("click", () => {
+    rows.push({ nr: "", name: "", unit: "", description: "" });
+    datasheet.channelsText = datasheetChannelRowsToText(rows);
+    renderRows();
+    updatePreview();
+  });
+
+  renderRows();
+}
+
+function parseDatasheetChannelRows(text) {
+  const rows = String(text || "")
+    .split(/\r?\n|;/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [nr, name, unit, description] = line.split("|").map((part) => part.trim());
+      return {
+        nr: nr || "",
+        name: name || "",
+        unit: unit || "",
+        description: description || "",
+      };
+    });
+  return rows.length ? rows : [{ nr: "", name: "", unit: "", description: "" }];
+}
+
+function datasheetChannelRowsToText(rows) {
+  return rows
+    .map((row) => [row.nr, row.name, row.unit, row.description].filter(Boolean).join(" | "))
+    .filter(Boolean)
+    .join("\n");
 }
 
 function detectDelimiter(line) {
@@ -1711,9 +2378,10 @@ function buildCharacteristicsRows() {
     }));
 }
 
-function buildDevicesDraft() {
-  return state.devices
-    .filter((entry) => entry.id || entry.manufacturer || entry.model || entry.serialNumber)
+function buildDevicesDraft({ includeEmpty = false } = {}) {
+  const devices = includeEmpty && state.devices.length === 0 ? [createDevice()] : state.devices;
+  return devices
+    .filter((entry) => includeEmpty || entry.id || entry.manufacturer || entry.model || entry.serialNumber)
     .map((entry) => ({
       schema_version: fields.schemaVersion.value || "2.0.0",
       device_internal_id: entry.id,
@@ -1727,9 +2395,10 @@ function buildDevicesDraft() {
     }));
 }
 
-function buildDatasheetsDraft() {
-  return state.datasheets
-    .filter((entry) => entry.id || entry.manufacturer || entry.model)
+function buildDatasheetsDraft({ includeEmpty = false } = {}) {
+  const datasheets = includeEmpty && state.datasheets.length === 0 ? [createDatasheet()] : state.datasheets;
+  return datasheets
+    .filter((entry) => includeEmpty || entry.id || entry.manufacturer || entry.model)
     .map((entry) => ({
       schema_version: fields.schemaVersion.value || "2.0.0",
       datasheet_id: entry.id,
@@ -1809,7 +2478,7 @@ function buildDataPackage() {
 
 function parseDeviceSensors(text) {
   const sensors = text
-    .split(/\r?\n/)
+    .split(/\r?\n|;/)
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => {
@@ -1824,7 +2493,7 @@ function parseDeviceSensors(text) {
 
 function parseSpectralSensitivity(text) {
   return text
-    .split(/\r?\n/)
+    .split(/\r?\n|;/)
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => {
@@ -1838,7 +2507,7 @@ function parseSpectralSensitivity(text) {
 
 function parseChannels(text) {
   const channels = text
-    .split(/\r?\n/)
+    .split(/\r?\n|;/)
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => {
@@ -1911,8 +2580,8 @@ function getPreviewPayload() {
       "participant_characteristics.csv": buildCharacteristicsRows(),
     };
   }
-  if (state.activeStep === "devices") return buildDevicesDraft();
-  if (state.activeStep === "datasheets") return buildDatasheetsDraft();
+  if (state.activeStep === "devices") return buildDevicesDraft({ includeEmpty: true });
+  if (state.activeStep === "datasheets") return buildDatasheetsDraft({ includeEmpty: true });
   return buildDatasetDraft();
 }
 
