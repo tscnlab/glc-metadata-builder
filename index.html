@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>GLC Metadata Builder</title>
-    <link rel="stylesheet" href="styles.css?v=20260629-glc-brand" />
+    <link rel="stylesheet" href="styles.css?v=20260704-green-import" />
   </head>
   <body>
     <main class="app-shell">
@@ -26,7 +26,6 @@
             <li data-step-link="study">Study</li>
             <li data-step-link="participants">Participants</li>
             <li data-step-link="devices">Devices</li>
-            <li data-step-link="datasheets">Datasheets</li>
             <li data-step-link="datasets">Datasets</li>
             <li data-step-link="export">Export package</li>
           </ol>
@@ -41,6 +40,17 @@
                   <h2>Project setup</h2>
                   <p>Choose the release version and package-level settings.</p>
                 </div>
+              </div>
+              <div class="file-drop compact-upload">
+                <input id="package-folder-import" type="file" webkitdirectory directory multiple />
+                <p id="package-folder-import-file" class="import-file-label" hidden></p>
+                <p id="package-folder-import-summary">
+                  Optional: import a metadata package folder. The builder looks for <code>study.json</code>,
+                  <code>participants.csv</code>, <code>participant_characteristics.csv</code>, <code>devices.json</code>,
+                  <code>device_datasheet.json</code>, and <code>datasets.json</code> at the folder root or inside <code>data/</code>.
+                </p>
+                <button type="button" class="small-button primary-import-button" id="import-package-folder-button">Import selected metadata folder</button>
+                <button type="button" class="secondary-button small-button" id="remove-package-folder-import">Remove imported metadata folder</button>
               </div>
               <div class="grid">
                 <label>
@@ -170,10 +180,15 @@
                 </div>
               </div>
 
+              <div id="study-validation-panel" class="section-validation-panel" aria-live="polite"></div>
+              <div class="metadata-actions bottom-schema-actions">
+                <span>Download metadata:</span>
+                <button type="button" id="download-study-metadata">Download study.json</button>
+              </div>
               <div class="schema-actions bottom-schema-actions">
-                <span>Download schemas:</span>
-                <button type="button" class="secondary-button small-button" id="download-study-schema">Study</button>
-                <button type="button" class="secondary-button small-button" id="download-contributor-schema">Contributor</button>
+                <span>Reference schemas:</span>
+                <button type="button" class="secondary-button small-button" id="download-study-schema">Study schema</button>
+                <button type="button" class="secondary-button small-button" id="download-contributor-schema">Contributor schema</button>
               </div>
               <div class="actions inline-actions">
                 <button type="button" class="secondary-button" data-prev-step="project">Back</button>
@@ -189,6 +204,10 @@
                   <h2>Participants</h2>
                   <p>Add participant rows for <code>participants.csv</code> and optional characteristics.</p>
                 </div>
+              </div>
+              <div class="subsection-heading prominent-subsection">
+                <h3>Participant roster</h3>
+                <p>Required rows for <code>participants.csv</code>.</p>
               </div>
               <div class="file-drop compact-upload">
                 <input id="participants-import" type="file" accept=".csv,.tsv,.json,text/csv,text/tab-separated-values,application/json" />
@@ -210,7 +229,7 @@
                 </div>
               </div>
 
-              <div class="subsection-heading">
+              <div class="subsection-heading prominent-subsection">
                 <h3>Participant characteristics</h3>
                 <p>Optional long-format rows for <code>participant_characteristics.csv</code>.</p>
               </div>
@@ -234,10 +253,16 @@
                   <button type="button" class="secondary-button danger-button" id="clear-all-characteristics">Clear all characteristic rows</button>
                 </div>
               </div>
+              <div id="participants-validation-panel" class="section-validation-panel" aria-live="polite"></div>
+              <div class="metadata-actions bottom-schema-actions">
+                <span>Download metadata:</span>
+                <button type="button" id="download-participants-metadata">Download participants.csv</button>
+                <button type="button" id="download-characteristics-metadata">Download participant_characteristics.csv</button>
+              </div>
               <div class="schema-actions bottom-schema-actions">
-                <span>Download schemas:</span>
-                <button type="button" class="secondary-button small-button" id="download-participants-schema">Participants</button>
-                <button type="button" class="secondary-button small-button" id="download-characteristics-schema">Characteristics</button>
+                <span>Reference schemas:</span>
+                <button type="button" class="secondary-button small-button" id="download-participants-schema">Participants schema</button>
+                <button type="button" class="secondary-button small-button" id="download-characteristics-schema">Characteristics schema</button>
               </div>
               <div class="actions inline-actions">
                 <button type="button" class="secondary-button" data-prev-step="study">Back</button>
@@ -251,8 +276,12 @@
                 <span>4</span>
                 <div>
                   <h2>Devices</h2>
-                  <p>Add device records for <code>devices.json</code>. Datasheet IDs can be completed now or after the datasheet step.</p>
+                  <p>Add device records and the datasheets they reference.</p>
                 </div>
+              </div>
+              <div class="subsection-heading prominent-subsection">
+                <h3>Device inventory</h3>
+                <p>Required records for <code>devices.json</code>.</p>
               </div>
               <div class="file-drop compact-upload">
                 <input id="devices-import" type="file" accept=".csv,.tsv,.json,text/csv,text/tab-separated-values,application/json" />
@@ -273,31 +302,17 @@
                 <button type="button" class="secondary-button small-button" id="remove-devices-import">Remove imported devices file</button>
               </div>
               <div class="validation-summary">
-                Datasheet IDs are pending cross-references: if the matching datasheet has not been added yet, leave the field blank or keep the imported ID and return here after the datasheet step.
+                Datasheet IDs are pending cross-references: if the matching datasheet has not been added yet, leave the field blank or keep the imported ID and complete the datasheet section below.
               </div>
               <div id="devices-list" class="card-list"></div>
               <div class="row-actions">
                 <button type="button" class="secondary-button" id="add-device">Add device</button>
                 <button type="button" class="secondary-button danger-button" id="clear-all-devices">Clear all device rows</button>
               </div>
-              <div class="schema-actions bottom-schema-actions">
-                <span>Download schemas:</span>
-                <button type="button" class="secondary-button small-button" id="download-device-schema">Device</button>
-              </div>
-              <div class="actions inline-actions">
-                <button type="button" class="secondary-button" data-prev-step="participants">Back</button>
-                <button type="button" class="secondary-button danger-button" id="clear-devices-page">Clear Devices page</button>
-                <button type="button" data-next-step="datasheets">Next: Datasheets</button>
-              </div>
-            </section>
 
-            <section class="form-section builder-step" data-step="datasheets">
-              <div class="section-heading">
-                <span>5</span>
-                <div>
-                  <h2>Device datasheets</h2>
-                  <p>Add device or sensor datasheet records referenced by devices.</p>
-                </div>
+              <div class="subsection-heading prominent-subsection">
+                <h3>Device datasheets</h3>
+                <p>Add device or sensor datasheet records referenced by devices.</p>
               </div>
               <div class="file-drop compact-upload">
                 <input id="datasheets-import" type="file" accept=".csv,.tsv,.json,text/csv,text/tab-separated-values,application/json" multiple />
@@ -315,20 +330,28 @@
                 <button type="button" class="secondary-button" id="add-datasheet">Add datasheet</button>
                 <button type="button" class="secondary-button danger-button" id="clear-all-datasheets">Clear all datasheet rows</button>
               </div>
+              <div id="devices-validation-panel" class="section-validation-panel" aria-live="polite"></div>
+              <div class="metadata-actions bottom-schema-actions">
+                <span>Download metadata:</span>
+                <button type="button" id="download-devices-metadata">Download devices.json</button>
+                <button type="button" id="download-datasheets-metadata">Download device_datasheet.json</button>
+              </div>
               <div class="schema-actions bottom-schema-actions">
-                <span>Download schemas:</span>
-                <button type="button" class="secondary-button small-button" id="download-datasheet-schema">Device datasheet</button>
+                <span>Reference schemas:</span>
+                <button type="button" class="secondary-button small-button" id="download-device-schema">Device schema</button>
+                <button type="button" class="secondary-button small-button" id="download-datasheet-schema">Device datasheet schema</button>
               </div>
               <div class="actions inline-actions">
-                <button type="button" class="secondary-button" data-prev-step="devices">Back</button>
-                <button type="button" class="secondary-button danger-button" id="clear-datasheets-page">Clear Datasheets page</button>
+                <button type="button" class="secondary-button" data-prev-step="participants">Back</button>
+                <button type="button" class="secondary-button danger-button" id="clear-devices-page">Clear device inventory</button>
+                <button type="button" class="secondary-button danger-button" id="clear-datasheets-page">Clear datasheets section</button>
                 <button type="button" data-next-step="datasets">Next: Datasets</button>
               </div>
             </section>
 
             <section class="form-section builder-step" data-step="datasets">
               <div class="section-heading">
-                <span>6</span>
+                <span>5</span>
                 <div>
                   <h2 title="A dataset record is one participant-level measurement dataset, with optional auxiliary file groups needed to interpret that measurement.">
                     Dataset record <span class="help-marker" title="Create a new dataset record when the participant, main device, body/device location, or primary modality changes. Add file groups when files belong to the same participant measurement context.">?</span>
@@ -394,7 +417,7 @@
                 </label>
                 <label>
                   Dataset timezone <span class="required">*</span>
-                  <input id="dataset-timezone" name="dataset-timezone" type="text" placeholder="Example: Europe/Berlin" required />
+                  <input id="dataset-timezone" name="dataset-timezone" type="text" list="timezone-options" placeholder="Example: Europe/Berlin" required />
                 </label>
                 <label>
                   Dataset location: latitude <span class="required">*</span>
@@ -412,7 +435,7 @@
               </label>
 
               <div class="section-heading compact-heading">
-                <span>6a</span>
+                <span>5a</span>
                 <div>
                   <h2 title="A file group is one or more same-structure files within the active dataset record.">
                     Dataset file assistant <span class="help-marker" title="Use file groups for same-context files, such as repeated files with the same columns, or auxiliary files needed to analyze the primary measurement.">?</span>
@@ -447,7 +470,7 @@
                 </label>
                 <label>
                   File timezone <span class="required">*</span>
-                  <input id="file-timezone" type="text" placeholder="Example: Europe/Berlin" />
+                  <input id="file-timezone" type="text" list="timezone-options" placeholder="Example: Europe/Berlin" />
                 </label>
                 <label>
                   Auxiliary file <span class="required">*</span>
@@ -528,7 +551,7 @@
               </div>
 
               <div class="section-heading compact-heading">
-                <span>6b</span>
+                <span>5b</span>
                 <div>
                   <h2>Detected variables</h2>
                   <p>Edit labels, units, calibration notes, semantic terms, and tick primary variables.</p>
@@ -538,12 +561,17 @@
               <div id="validation-summary" class="validation-summary">Select a file to detect columns.</div>
               <div id="variables-table" class="variables-table" aria-live="polite"></div>
 
+              <div id="datasets-validation-panel" class="section-validation-panel" aria-live="polite"></div>
+              <div class="metadata-actions bottom-schema-actions">
+                <span>Download metadata:</span>
+                <button type="button" id="download-datasets-metadata">Download datasets.json</button>
+              </div>
               <div class="schema-actions bottom-schema-actions">
-                <span>Download schemas:</span>
-                <button type="button" class="secondary-button small-button" id="download-dataset-schema">Dataset</button>
+                <span>Reference schemas:</span>
+                <button type="button" class="secondary-button small-button" id="download-dataset-schema">Dataset schema</button>
               </div>
               <div class="actions inline-actions">
-                <button type="button" class="secondary-button" data-prev-step="datasheets">Back</button>
+                <button type="button" class="secondary-button" data-prev-step="devices">Back</button>
                 <button type="button" class="secondary-button danger-button" id="clear-dataset-page">Clear Dataset page</button>
                 <button type="button" data-next-step="export">Next: Export</button>
               </div>
@@ -551,7 +579,7 @@
 
             <section class="form-section builder-step" data-step="export">
               <div class="section-heading">
-                <span>7</span>
+                <span>6</span>
                 <div>
                   <h2>Export package</h2>
                   <p>Download individual metadata files or a metadata package zip.</p>
@@ -590,6 +618,7 @@
       </section>
     </main>
 
-    <script src="app.js?v=20260625-soft-validation"></script>
+    <datalist id="timezone-options"></datalist>
+    <script src="app.js?v=20260704-datapackage-import-fields"></script>
   </body>
 </html>

@@ -70,6 +70,43 @@ const createDatasetRecord = () => ({
   fileGroups: [createFileGroup()],
 });
 
+const FALLBACK_TIME_ZONES = [
+  "UTC",
+  "Etc/UTC",
+  "Africa/Cairo",
+  "Africa/Johannesburg",
+  "America/Anchorage",
+  "America/Argentina/Buenos_Aires",
+  "America/Bogota",
+  "America/Chicago",
+  "America/Denver",
+  "America/Los_Angeles",
+  "America/Mexico_City",
+  "America/New_York",
+  "America/Phoenix",
+  "America/Santiago",
+  "America/Sao_Paulo",
+  "America/Toronto",
+  "Asia/Dubai",
+  "Asia/Hong_Kong",
+  "Asia/Jerusalem",
+  "Asia/Kolkata",
+  "Asia/Seoul",
+  "Asia/Shanghai",
+  "Asia/Singapore",
+  "Asia/Tokyo",
+  "Australia/Melbourne",
+  "Australia/Sydney",
+  "Europe/Amsterdam",
+  "Europe/Berlin",
+  "Europe/London",
+  "Europe/Madrid",
+  "Europe/Paris",
+  "Europe/Rome",
+  "Pacific/Auckland",
+  "Pacific/Honolulu",
+];
+
 const initialDataset = createDatasetRecord();
 
 const state = {
@@ -85,11 +122,14 @@ const state = {
   datasheetImportedFiles: [],
   datasets: [initialDataset],
   fileGroups: initialDataset.fileGroups,
+  supportedTimeZones: [],
+  supportedTimeZoneSet: new Set(),
 };
 
 const fileInput = document.querySelector("#file-input");
 const fileSummary = document.querySelector("#file-summary");
 const fileWarning = document.querySelector("#file-warning");
+const timezoneOptions = document.querySelector("#timezone-options");
 const variablesTable = document.querySelector("#variables-table");
 const termsList = document.querySelector("#terms-list");
 const datasetRecordsList = document.querySelector("#dataset-records-list");
@@ -101,8 +141,21 @@ const datasetImportFile = document.querySelector("#dataset-import-file");
 const datasetImportSummary = document.querySelector("#dataset-import-summary");
 const jsonPreview = document.querySelector("#json-preview");
 const previewTitle = document.querySelector("#preview-title");
+const builderPanel = document.querySelector(".builder-panel");
+const previewPanel = document.querySelector(".preview-panel");
 const packageSummary = document.querySelector("#package-summary");
 const exportValidationPanel = document.querySelector("#export-validation-panel");
+const packageFolderImport = document.querySelector("#package-folder-import");
+const importPackageFolderButton = document.querySelector("#import-package-folder-button");
+const packageFolderImportFile = document.querySelector("#package-folder-import-file");
+const packageFolderImportSummary = document.querySelector("#package-folder-import-summary");
+const removePackageFolderImportButton = document.querySelector("#remove-package-folder-import");
+const sectionValidationPanels = {
+  study: document.querySelector("#study-validation-panel"),
+  participants: document.querySelector("#participants-validation-panel"),
+  devices: document.querySelector("#devices-validation-panel"),
+  datasets: document.querySelector("#datasets-validation-panel"),
+};
 const downloadButton = document.querySelector("#download-json");
 const copyButton = document.querySelector("#copy-json");
 const addTermButton = document.querySelector("#add-term");
@@ -241,6 +294,17 @@ document.querySelector("#remove-datasheets-import").addEventListener("click", ()
 document.querySelector("#clear-datasheets-page").addEventListener("click", clearDatasheetsPage);
 document.querySelector("#remove-dataset-import").addEventListener("click", () => clearDatasetPage("Imported dataset file removed. Add data manually or import another datasets.json file."));
 document.querySelector("#clear-dataset-page").addEventListener("click", () => clearDatasetPage());
+packageFolderImport.addEventListener("change", handlePackageFolderSelection);
+importPackageFolderButton.addEventListener("click", () => {
+  const files = Array.from(packageFolderImport.files || []);
+  if (files.length === 0) {
+    packageFolderImportSummary.textContent = "Choose a metadata package folder first, then click Import.";
+    packageFolderImportSummary.className = "import-summary warning";
+    return;
+  }
+  importPackageFolder(files);
+});
+removePackageFolderImportButton.addEventListener("click", clearPackageFolderImport);
 document.querySelector("#download-package-zip").addEventListener("click", downloadPackageZip);
 document.querySelector("#download-datapackage").addEventListener("click", () => downloadText("datapackage.json", JSON.stringify(buildDataPackage(), null, 2), "application/json"));
 document.querySelector("#download-study").addEventListener("click", () => downloadText("study.json", JSON.stringify(buildStudyDraft(), null, 2), "application/json"));
@@ -248,6 +312,12 @@ document.querySelector("#download-participants").addEventListener("click", () =>
 document.querySelector("#download-characteristics").addEventListener("click", () => downloadText("participant_characteristics.csv", buildCharacteristicsCsv(), "text/csv"));
 document.querySelector("#download-devices").addEventListener("click", () => downloadText("devices.json", JSON.stringify(buildDevicesDraft(), null, 2), "application/json"));
 document.querySelector("#download-datasheets").addEventListener("click", () => downloadText("device_datasheet.json", JSON.stringify(buildDatasheetsDraft(), null, 2), "application/json"));
+document.querySelector("#download-study-metadata").addEventListener("click", () => downloadText("study.json", JSON.stringify(buildStudyDraft(), null, 2), "application/json"));
+document.querySelector("#download-participants-metadata").addEventListener("click", () => downloadText("participants.csv", buildParticipantsCsv(), "text/csv"));
+document.querySelector("#download-characteristics-metadata").addEventListener("click", () => downloadText("participant_characteristics.csv", buildCharacteristicsCsv(), "text/csv"));
+document.querySelector("#download-devices-metadata").addEventListener("click", () => downloadText("devices.json", JSON.stringify(buildDevicesDraft(), null, 2), "application/json"));
+document.querySelector("#download-datasheets-metadata").addEventListener("click", () => downloadText("device_datasheet.json", JSON.stringify(buildDatasheetsDraft(), null, 2), "application/json"));
+document.querySelector("#download-datasets-metadata").addEventListener("click", () => downloadText("datasets.json", JSON.stringify(buildDatasetDraft(), null, 2), "application/json"));
 document.querySelector("#download-study-schema").addEventListener("click", () => downloadSchema("study.schema.json"));
 document.querySelector("#download-contributor-schema").addEventListener("click", () => downloadSchema("contributor.schema.json"));
 document.querySelector("#download-participants-schema").addEventListener("click", () => downloadSchema("participants.schema.json"));
@@ -266,10 +336,121 @@ document.querySelectorAll("[data-step-link]").forEach((item) => {
   item.addEventListener("click", () => setStep(item.dataset.stepLink));
 });
 
+document.addEventListener("click", handleHelpMarkerClick);
+document.addEventListener("keydown", handleHelpMarkerKeydown);
+document.addEventListener("keydown", handleGlobalHelpTooltipKeydown);
+document.addEventListener("pointerdown", closeHelpTooltipOnOutsidePointer);
+
 Object.values(fields).forEach((field) => {
   field.addEventListener("input", handleFormInput);
   field.addEventListener("change", handleFormChange);
 });
+
+function getHelpTooltip() {
+  let tooltip = document.querySelector("#help-tooltip");
+  if (!tooltip) {
+    tooltip = document.createElement("div");
+    tooltip.id = "help-tooltip";
+    tooltip.className = "help-tooltip";
+    tooltip.setAttribute("role", "tooltip");
+    tooltip.hidden = true;
+    document.body.appendChild(tooltip);
+  }
+  return tooltip;
+}
+
+function getHelpMarkerText(marker) {
+  return marker.dataset.helpText || marker.getAttribute("title") || marker.getAttribute("aria-label") || "";
+}
+
+function prepareHelpMarker(marker) {
+  if (!marker.dataset.helpText) {
+    const helpText = getHelpMarkerText(marker);
+    marker.dataset.helpText = helpText;
+    marker.setAttribute("aria-label", helpText);
+  }
+  if (!marker.hasAttribute("role")) {
+    marker.setAttribute("role", "button");
+  }
+  if (!marker.hasAttribute("tabindex")) {
+    marker.setAttribute("tabindex", "0");
+  }
+}
+
+function showHelpTooltip(marker) {
+  prepareHelpMarker(marker);
+  const helpText = getHelpMarkerText(marker);
+  if (!helpText) {
+    return;
+  }
+  const tooltip = getHelpTooltip();
+  tooltip.textContent = helpText;
+  tooltip.hidden = false;
+
+  const markerRect = marker.getBoundingClientRect();
+  const tooltipRect = tooltip.getBoundingClientRect();
+  const viewportPadding = 12;
+  const top = window.scrollY + markerRect.bottom + 8;
+  const preferredLeft = window.scrollX + markerRect.left + markerRect.width / 2 - tooltipRect.width / 2;
+  const maxLeft = window.scrollX + window.innerWidth - tooltipRect.width - viewportPadding;
+  const left = Math.max(window.scrollX + viewportPadding, Math.min(preferredLeft, maxLeft));
+
+  tooltip.style.top = `${top}px`;
+  tooltip.style.left = `${left}px`;
+  marker.setAttribute("aria-expanded", "true");
+  marker.setAttribute("aria-describedby", "help-tooltip");
+}
+
+function hideHelpTooltip() {
+  const tooltip = document.querySelector("#help-tooltip");
+  if (!tooltip || tooltip.hidden) {
+    return;
+  }
+  tooltip.hidden = true;
+  document.querySelectorAll(".help-marker[aria-expanded='true']").forEach((marker) => {
+    marker.removeAttribute("aria-expanded");
+    marker.removeAttribute("aria-describedby");
+  });
+}
+
+function handleHelpMarkerClick(event) {
+  const marker = event.target.closest(".help-marker");
+  if (!marker) {
+    return;
+  }
+  event.preventDefault();
+  event.stopPropagation();
+  const tooltip = getHelpTooltip();
+  const isOpen = !tooltip.hidden && marker.getAttribute("aria-expanded") === "true";
+  hideHelpTooltip();
+  if (!isOpen) {
+    showHelpTooltip(marker);
+  }
+}
+
+function handleHelpMarkerKeydown(event) {
+  const marker = event.target.closest(".help-marker");
+  if (!marker || (event.key !== "Enter" && event.key !== " ")) {
+    return;
+  }
+  event.preventDefault();
+  marker.click();
+}
+
+function handleGlobalHelpTooltipKeydown(event) {
+  if (event.key === "Escape") {
+    hideHelpTooltip();
+  }
+}
+
+function closeHelpTooltipOnOutsidePointer(event) {
+  if (event.target.closest(".help-marker") || event.target.closest("#help-tooltip")) {
+    return;
+  }
+  hideHelpTooltip();
+}
+
+document.querySelectorAll(".help-marker").forEach(prepareHelpMarker);
 
 function handleFormInput() {
   syncDatasetControlsIfNeeded();
@@ -411,6 +592,24 @@ function setSelectOptions(select, values, placeholder) {
   } else if (values.length === 1) {
     select.value = values[0];
   }
+}
+
+function getSupportedTimeZones() {
+  const timeZones = typeof Intl.supportedValuesOf === "function"
+    ? Intl.supportedValuesOf("timeZone")
+    : FALLBACK_TIME_ZONES;
+  return Array.from(new Set([...timeZones, "UTC", "Etc/UTC"])).sort();
+}
+
+function initializeTimeZoneOptions() {
+  state.supportedTimeZones = getSupportedTimeZones();
+  state.supportedTimeZoneSet = new Set(state.supportedTimeZones);
+  if (!timezoneOptions) {
+    return;
+  }
+  timezoneOptions.innerHTML = state.supportedTimeZones
+    .map((timeZone) => `<option value="${escapeHtml(timeZone)}"></option>`)
+    .join("");
 }
 
 function clearStudyPage() {
@@ -557,12 +756,15 @@ function applyDatasetSchemaHelp(schema) {
     "instructions": "dataset_instructions",
   });
 
+  const locationItemType = properties.dataset_location?.items
+    ? formatSchemaType(properties.dataset_location.items)
+    : "string";
   const fieldHelp = {
     studyId: schemaHelpTitle(crossref.dataset_crossref_study_id, "Internal ID for study"),
     participantId: schemaHelpTitle(crossref.dataset_crossref_participant_id, "Internal ID for participant"),
     deviceId: schemaHelpTitle(crossref.dataset_crossref_device_id, "Internal ID for device"),
-    latitude: schemaHelpTitle(properties.dataset_location, "Latitude of data collection"),
-    longitude: schemaHelpTitle(properties.dataset_location, "Longitude of data collection"),
+    latitude: `Latitude of data collection. Type: ${locationItemType}.`,
+    longitude: `Longitude of data collection. Type: ${locationItemType}.`,
   };
 
   [
@@ -587,7 +789,8 @@ function schemaHelpTitle(property, fallback) {
 }
 
 function helpMarker(helpText) {
-  return `<span class="help-marker" title="${escapeHtml(helpText)}" aria-label="${escapeHtml(helpText)}">?</span>`;
+  const text = escapeHtml(helpText);
+  return `<span class="help-marker" title="${text}" data-help-text="${text}" role="button" tabindex="0" aria-label="${text}">?</span>`;
 }
 
 function addHelpMarker(label, helpText) {
@@ -624,38 +827,7 @@ async function handleStudyImport(event) {
   try {
     const parsed = JSON.parse(await file.text());
     const study = Array.isArray(parsed) ? parsed[0] : parsed;
-
-    if (!study || typeof study !== "object") {
-      throw new Error("Expected a study object or an array containing one study object.");
-    }
-
-    fields.schemaVersion.value = study.schema_version || fields.schemaVersion.value || "2.0.0";
-    fields.studyInternalId.value = study.study_internal_id || "";
-    fields.studyTitle.value = study.study_title || "";
-    fields.studyPreregistration.value = study.study_preregistration || "";
-    fields.studyRegistration.value = study.study_registration || "";
-    fields.studyEthics.value = study.study_ethics || "";
-    fields.studyType.value = study.study_type || "";
-    fields.studyShortDescription.value = study.study_short_description || "";
-    fields.studySample.value = study.study_sample || "";
-    fields.studySetting.value = study.study_setting || "";
-    fields.studyGeographicalLocation.value = study.study_geographical_location || "";
-    fields.studyIntervention.value = study.study_intervention || "";
-    fields.studyFundingSources.value = (study.study_funding_sources || []).join(", ");
-    fields.studyKeywords.value = (study.study_keywords || []).join(", ");
-
-    state.studyGroups = Array.isArray(study.study_groups)
-      ? study.study_groups.map((group) => ({
-          name: group.study_group_name || "",
-          description: group.study_group_description || "",
-          size: group.study_group_size ?? "",
-          inclusion: (group.study_group_inclusion || []).join("; "),
-          exclusion: (group.study_group_exclusion || []).join("; "),
-        }))
-      : [];
-    state.contributors = Array.isArray(study.study_contributors)
-      ? study.study_contributors.map(contributorFromSchema)
-      : [];
+    populateStudyFromSchema(study);
 
     renderStudyGroups();
     renderContributors();
@@ -670,6 +842,40 @@ async function handleStudyImport(event) {
   } finally {
     studyImport.value = "";
   }
+}
+
+function populateStudyFromSchema(study) {
+  if (!study || typeof study !== "object") {
+    throw new Error("Expected a study object or an array containing one study object.");
+  }
+
+  fields.schemaVersion.value = study.schema_version || fields.schemaVersion.value || "2.0.0";
+  fields.studyInternalId.value = study.study_internal_id || "";
+  fields.studyTitle.value = study.study_title || "";
+  fields.studyPreregistration.value = study.study_preregistration || "";
+  fields.studyRegistration.value = study.study_registration || "";
+  fields.studyEthics.value = study.study_ethics || "";
+  fields.studyType.value = study.study_type || "";
+  fields.studyShortDescription.value = study.study_short_description || "";
+  fields.studySample.value = study.study_sample || "";
+  fields.studySetting.value = study.study_setting || "";
+  fields.studyGeographicalLocation.value = study.study_geographical_location || "";
+  fields.studyIntervention.value = study.study_intervention || "";
+  fields.studyFundingSources.value = (study.study_funding_sources || []).join(", ");
+  fields.studyKeywords.value = (study.study_keywords || []).join(", ");
+
+  state.studyGroups = Array.isArray(study.study_groups)
+    ? study.study_groups.map((group) => ({
+        name: group.study_group_name || "",
+        description: group.study_group_description || "",
+        size: group.study_group_size ?? "",
+        inclusion: (group.study_group_inclusion || []).join("; "),
+        exclusion: (group.study_group_exclusion || []).join("; "),
+      }))
+    : [];
+  state.contributors = Array.isArray(study.study_contributors)
+    ? study.study_contributors.map(contributorFromSchema)
+    : [];
 }
 
 async function handleContributorsImport(event) {
@@ -1059,7 +1265,7 @@ async function importDevicesFile(file) {
     updateCrossrefOptions();
     updatePreview();
     showImportFile(devicesImportFile, file.name);
-    devicesImportSummary.textContent = `Imported ${state.devices.length} device row(s) from ${file.name}. Datasheet IDs can be finalized after the datasheet step.`;
+    devicesImportSummary.textContent = `Imported ${state.devices.length} device row(s) from ${file.name}. Datasheet IDs can be finalized in the datasheet section below.`;
     devicesImportSummary.className = "import-summary ok";
   } catch (error) {
     devicesImportSummary.textContent = `Could not import ${file.name}: ${error.message}`;
@@ -1297,7 +1503,7 @@ function channelsToText(value) {
 }
 
 function clearDatasheetsPage() {
-  clearAllDatasheets("Datasheets page cleared. Add rows manually or import a datasheet file.");
+  clearAllDatasheets("Datasheets section cleared. Add rows manually or import a datasheet file.");
 }
 
 function clearAllDatasheets(message = "All datasheet rows cleared. Add rows manually or import another file.") {
@@ -1327,18 +1533,7 @@ async function importDatasetFile(file) {
   datasetImportSummary.className = "import-summary";
 
   try {
-    const parsed = JSON.parse(await file.text());
-    const rows = Array.isArray(parsed)
-      ? parsed
-      : Array.isArray(parsed?.datasets)
-        ? parsed.datasets
-        : parsed?.dataset_internal_id
-          ? [parsed]
-          : null;
-
-    if (!rows || rows.length === 0) {
-      throw new Error("Expected datasets.json as an array, a single dataset object, or an object with a datasets array.");
-    }
+    const rows = datasetRowsFromJson(await file.text());
 
     fields.schemaVersion.value = rows.find((row) => row?.schema_version)?.schema_version || fields.schemaVersion.value || "2.0.0";
     state.datasets = rows.map(datasetRecordFromSchema);
@@ -1354,6 +1549,23 @@ async function importDatasetFile(file) {
   } finally {
     datasetImport.value = "";
   }
+}
+
+function datasetRowsFromJson(text) {
+  const parsed = JSON.parse(text);
+  const rows = Array.isArray(parsed)
+    ? parsed
+    : Array.isArray(parsed?.datasets)
+      ? parsed.datasets
+      : parsed?.dataset_internal_id
+        ? [parsed]
+        : null;
+
+  if (!rows || rows.length === 0) {
+    throw new Error("Expected datasets.json as an array, a single dataset object, or an object with a datasets array.");
+  }
+
+  return rows;
 }
 
 function populateDatasetFromSchema(dataset) {
@@ -1633,7 +1845,7 @@ function renderDevices() {
     const serialNumberHelp = schemaHelpTitle(help.device_serial_number, "Serial number assigned to the individual device");
     const calibrationDateHelp = schemaHelpTitle(help.device_calibration_date, "Date of last calibration, or blank if unknown");
     const firmwareHelp = schemaHelpTitle(help.device_firmware_version, "Firmware version installed on the device");
-    const datasheetHelp = schemaHelpTitle(help.device_datasheet_id, "Reference to the general device datasheet. This can be completed after the datasheet step.");
+    const datasheetHelp = schemaHelpTitle(help.device_datasheet_id, "Reference to the general device datasheet. This can be completed in the datasheet section.");
     const sensorTypeHelp = schemaHelpTitle(sensorHelp.device_sensor_type, "Sensor type, e.g. photopic light sensor");
     const sensorDatasheetHelp = schemaHelpTitle(sensorHelp.device_sensor_datasheet_id, "Optional sensor-specific datasheet ID");
     const sensorsHelp = `${schemaHelpTitle(help.device_sensors, "List of sensors contained within the device")} Add one row per sensor.`;
@@ -1663,7 +1875,7 @@ function renderDevices() {
         </label>
         <label class="wide" title="${escapeHtml(datasheetHelp)}">Datasheet ID <span class="required">*</span> ${helpMarker(datasheetHelp)}
           <select class="datasheet-select" data-field="datasheetId" title="${escapeHtml(datasheetHelp)}"></select>
-          <span class="field-help">If the datasheet has not been created yet, leave this blank or keep an imported pending ID and return after the Datasheets step.</span>
+          <span class="field-help">If the datasheet has not been created yet, leave this blank or keep an imported pending ID and complete the datasheet section below.</span>
         </label>
         <div class="wide nested-editor" title="${escapeHtml(sensorsHelp)}">
           <div class="nested-editor-heading">
@@ -2901,8 +3113,8 @@ function buildDataPackage() {
   return {
     profile: "schemas/2.0.0/gleam-dp-profile.json",
     schema_version: fields.schemaVersion.value || "2.0.0",
-    name: fields.packageName.value || "glc-metadata-package",
-    title: fields.packageTitle.value || fields.studyTitle.value || "GLC metadata package",
+    name: fields.packageName.value,
+    title: fields.packageTitle.value,
     resources,
   };
 }
@@ -3011,7 +3223,12 @@ function getPreviewPayload() {
       "participant_characteristics.csv": buildCharacteristicsRows(),
     };
   }
-  if (state.activeStep === "devices") return buildDevicesDraft({ includeEmpty: true });
+  if (state.activeStep === "devices") {
+    return {
+      "devices.json": buildDevicesDraft({ includeEmpty: true }),
+      "device_datasheet.json": buildDatasheetsDraft({ includeEmpty: true }),
+    };
+  }
   if (state.activeStep === "datasheets") return buildDatasheetsDraft({ includeEmpty: true });
   return buildDatasetDraft();
 }
@@ -3021,7 +3238,7 @@ function getPreviewTitle() {
     project: "datapackage.json preview",
     study: "study.json preview",
     participants: "participant tables preview",
-    devices: "devices.json preview",
+    devices: "device files preview",
     datasheets: "device_datasheet.json preview",
     datasets: "datasets.json preview",
     export: "datapackage.json preview",
@@ -3033,13 +3250,41 @@ function updatePreview() {
   const payload = getPreviewPayload();
   previewTitle.textContent = getPreviewTitle();
   jsonPreview.textContent = JSON.stringify(payload, null, 2);
+  schedulePreviewHeightSync();
   updatePackageSummary();
+}
+
+let previewHeightFrame = null;
+
+function schedulePreviewHeightSync() {
+  if (previewHeightFrame) {
+    cancelAnimationFrame(previewHeightFrame);
+  }
+  previewHeightFrame = requestAnimationFrame(() => {
+    previewHeightFrame = null;
+    syncPreviewHeight();
+  });
+}
+
+function syncPreviewHeight() {
+  if (!builderPanel || !previewPanel || !jsonPreview) return;
+
+  if (window.matchMedia("(max-width: 1100px)").matches) {
+    previewPanel.style.removeProperty("height");
+    jsonPreview.style.removeProperty("max-height");
+    return;
+  }
+
+  const targetHeight = Math.max(640, builderPanel.offsetHeight);
+  previewPanel.style.height = `${targetHeight}px`;
+  jsonPreview.style.maxHeight = `${Math.max(320, targetHeight - 74)}px`;
 }
 
 function updatePackageSummary() {
   if (!packageSummary) return;
   packageSummary.className = "validation-summary ok";
   packageSummary.textContent = `${buildParticipantsRows().length} participant row(s), ${buildDevicesDraft().length} device record(s), ${buildDatasheetsDraft().length} datasheet record(s), ${buildDatasetDraft().length} dataset record(s).`;
+  renderSectionValidationPanels();
   renderExportValidationPanel();
 }
 
@@ -3053,6 +3298,79 @@ function validateBuilder() {
   ];
 }
 
+function validateSectionForExport(section) {
+  if (section === "study") return validateStudyForExport();
+  if (section === "participants") return validateParticipantsForExport();
+  if (section === "devices") return [...validateDevicesForExport(), ...validateDatasheetsForExport()];
+  if (section === "datasets") return validateDatasetsForExport();
+  return [];
+}
+
+function renderSectionValidationPanels() {
+  Object.entries(sectionValidationPanels).forEach(([section, panel]) => {
+    if (!panel) {
+      return;
+    }
+    renderValidationPanel(panel, validateSectionForExport(section), {
+      okTitle: "No page warnings",
+      okText: "This page has no missing required fields according to the builder checks.",
+      warningText: "Soft warning only: downloads are still available, but these fields may fail the full validator.",
+      titleSuffix: "warning(s) on this page",
+      classBase: "section-validation-panel",
+      hideWhenOk: true,
+    });
+  });
+}
+
+function renderValidationPanel(panel, issues, options) {
+  const {
+    okTitle,
+    okText,
+    warningText,
+    titleSuffix,
+    classBase,
+    hideWhenOk = false,
+  } = options;
+
+  if (issues.length === 0) {
+    if (hideWhenOk) {
+      panel.hidden = true;
+      panel.innerHTML = "";
+      return;
+    }
+    panel.hidden = false;
+    panel.className = `${classBase} ok`;
+    panel.innerHTML = `
+      <h3>${escapeHtml(okTitle)}</h3>
+      <p>${escapeHtml(okText)}</p>
+    `;
+    return;
+  }
+
+  panel.hidden = false;
+  const grouped = issues.reduce((bySection, issue) => {
+    if (!bySection[issue.section]) {
+      bySection[issue.section] = [];
+    }
+    bySection[issue.section].push(issue.message);
+    return bySection;
+  }, {});
+
+  panel.className = `${classBase} warning`;
+  panel.innerHTML = `
+    <h3>${issues.length} ${escapeHtml(titleSuffix)}</h3>
+    <p>${escapeHtml(warningText)}</p>
+    ${Object.entries(grouped)
+      .map(([section, messages]) => `
+        <strong>${escapeHtml(section)}</strong>
+        <ul>
+          ${messages.map((message) => `<li>${escapeHtml(message)}</li>`).join("")}
+        </ul>
+      `)
+      .join("")}
+  `;
+}
+
 function validationIssue(section, message) {
   return { section, message };
 }
@@ -3063,6 +3381,76 @@ function isBlank(value) {
 
 function hasAnyValue(values) {
   return values.some((value) => !isBlank(value));
+}
+
+function normalizeTimeZoneValue(value) {
+  return String(value || "").trim();
+}
+
+function isRecognizedTimeZone(value) {
+  const timeZone = normalizeTimeZoneValue(value);
+  if (!timeZone) {
+    return true;
+  }
+  if (state.supportedTimeZoneSet.has(timeZone)) {
+    return true;
+  }
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function suggestTimeZone(value) {
+  const timeZone = normalizeTimeZoneValue(value);
+  if (!timeZone || state.supportedTimeZones.length === 0) {
+    return "";
+  }
+
+  const caseInsensitiveMatch = state.supportedTimeZones.find((entry) => entry.toLowerCase() === timeZone.toLowerCase());
+  if (caseInsensitiveMatch) {
+    return caseInsensitiveMatch;
+  }
+
+  let best = { value: "", distance: Infinity };
+  state.supportedTimeZones.forEach((entry) => {
+    const distance = levenshteinDistance(timeZone.toLowerCase(), entry.toLowerCase());
+    if (distance < best.distance) {
+      best = { value: entry, distance };
+    }
+  });
+
+  const threshold = Math.max(2, Math.floor(timeZone.length * 0.22));
+  return best.distance <= threshold ? best.value : "";
+}
+
+function levenshteinDistance(a, b) {
+  const previous = Array.from({ length: b.length + 1 }, (_, index) => index);
+  const current = Array(b.length + 1).fill(0);
+
+  for (let i = 1; i <= a.length; i += 1) {
+    current[0] = i;
+    for (let j = 1; j <= b.length; j += 1) {
+      const substitutionCost = a[i - 1] === b[j - 1] ? 0 : 1;
+      current[j] = Math.min(
+        current[j - 1] + 1,
+        previous[j] + 1,
+        previous[j - 1] + substitutionCost,
+      );
+    }
+    previous.splice(0, previous.length, ...current);
+  }
+
+  return previous[b.length];
+}
+
+function timeZoneIssueMessage(label, value) {
+  const suggestion = suggestTimeZone(value);
+  return suggestion
+    ? `${label} "${normalizeTimeZoneValue(value)}" is not a recognized IANA time zone. Did you mean "${suggestion}"?`
+    : `${label} "${normalizeTimeZoneValue(value)}" is not a recognized IANA time zone. Use a tz database name such as "Europe/Berlin".`;
 }
 
 function validateStudyForExport() {
@@ -3259,6 +3647,9 @@ function validateDatasetsForExport() {
     if (!isBlank(dataset.studyId) && studyId && dataset.studyId !== studyId) {
       issues.push(validationIssue("Datasets", `Dataset ${label}: study ID does not match the Study page ID.`));
     }
+    if (!isBlank(dataset.datasetTimezone) && !isRecognizedTimeZone(dataset.datasetTimezone)) {
+      issues.push(validationIssue("Datasets", `Dataset ${label}: ${timeZoneIssueMessage("dataset timezone", dataset.datasetTimezone)}`));
+    }
     if (!isBlank(dataset.participantId) && !participantIds.has(dataset.participantId)) {
       issues.push(validationIssue("Datasets", `Dataset ${label}: participant ID does not match any participant row.`));
     }
@@ -3290,6 +3681,9 @@ function validateDatasetsForExport() {
       if (!group.files || group.files.length === 0) {
         issues.push(validationIssue("Datasets", `${groupLabel}: no data file has been selected or listed.`));
       }
+      if (!isBlank(group.fileTimezone) && !isRecognizedTimeZone(group.fileTimezone)) {
+        issues.push(validationIssue("Datasets", `${groupLabel}: ${timeZoneIssueMessage("file timezone", group.fileTimezone)}`));
+      }
       if (!group.columns || group.columns.length === 0) {
         issues.push(validationIssue("Datasets", `${groupLabel}: no variables/columns are listed.`));
       }
@@ -3319,37 +3713,236 @@ function renderExportValidationPanel() {
     return;
   }
 
-  const issues = validateBuilder();
-  if (issues.length === 0) {
-    exportValidationPanel.className = "export-validation-panel ok";
-    exportValidationPanel.innerHTML = `
-      <h3>Ready to export</h3>
-      <p>No missing required fields were found by the builder checks.</p>
-    `;
+  renderValidationPanel(exportValidationPanel, validateBuilder(), {
+    okTitle: "Ready to export",
+    okText: "No missing required fields were found by the builder checks.",
+    warningText: "Soft warning only: downloads are still available, but these fields may fail the full validator.",
+    titleSuffix: "issue(s) to review before export",
+    classBase: "export-validation-panel",
+  });
+}
+
+function handlePackageFolderSelection(event) {
+  const files = Array.from(event.target.files || []);
+  if (files.length === 0) {
+    hideImportFile(packageFolderImportFile);
+    packageFolderImportSummary.textContent = "Choose a metadata package folder first, then click Import.";
+    packageFolderImportSummary.className = "import-summary";
     return;
   }
 
-  const grouped = issues.reduce((bySection, issue) => {
-    if (!bySection[issue.section]) {
-      bySection[issue.section] = [];
-    }
-    bySection[issue.section].push(issue.message);
-    return bySection;
-  }, {});
+  const folderName = getFolderSelectionName(files);
+  showImportFile(packageFolderImportFile, `${folderName} (${files.length} file(s))`);
+  packageFolderImportSummary.textContent = "Folder selected. Click Import selected metadata folder to load recognized metadata files.";
+  packageFolderImportSummary.className = "import-summary";
+}
 
-  exportValidationPanel.className = "export-validation-panel warning";
-  exportValidationPanel.innerHTML = `
-    <h3>${issues.length} issue(s) to review before export</h3>
-    <p>Soft warning only: downloads are still available, but these fields may fail the full validator.</p>
-    ${Object.entries(grouped)
-      .map(([section, messages]) => `
-        <strong>${escapeHtml(section)}</strong>
-        <ul>
-          ${messages.map((message) => `<li>${escapeHtml(message)}</li>`).join("")}
-        </ul>
-      `)
-      .join("")}
-  `;
+async function importPackageFolder(files) {
+  packageFolderImportSummary.textContent = `Scanning ${files.length} file(s)...`;
+  packageFolderImportSummary.className = "import-summary";
+
+  try {
+    const found = findPackageMetadataFiles(files);
+    const imported = [];
+    const missing = [];
+
+    if (found.datapackage) {
+      const datapackage = JSON.parse(await found.datapackage.text());
+      populatePackageFieldsFromDataPackage(datapackage);
+      imported.push("datapackage.json");
+    }
+
+    if (found.study) {
+      const studyText = await found.study.text();
+      const parsed = JSON.parse(studyText);
+      populateStudyFromSchema(Array.isArray(parsed) ? parsed[0] : parsed);
+      imported.push("study.json");
+    } else {
+      missing.push("study.json");
+    }
+
+    if (found.participants) {
+      state.participants = await parsePackageRows(found.participants, participantsFromJson, participantsFromTable);
+      imported.push(found.participants.name);
+    } else {
+      missing.push("participants.csv");
+    }
+
+    if (found.characteristics) {
+      state.characteristics = await parsePackageRows(found.characteristics, characteristicsFromJson, characteristicsFromTable);
+      imported.push(found.characteristics.name);
+    } else {
+      state.characteristics = [];
+    }
+
+    if (found.devices) {
+      state.devices = devicesFromJson(await found.devices.text());
+      imported.push("devices.json");
+    } else {
+      missing.push("devices.json");
+    }
+
+    if (found.datasheets) {
+      state.datasheets = datasheetsFromJson(await found.datasheets.text());
+      state.datasheetImportedFiles = [found.datasheets.name];
+      imported.push("device_datasheet.json");
+    } else {
+      missing.push("device_datasheet.json");
+    }
+
+    if (found.datasets) {
+      const datasetRows = datasetRowsFromJson(await found.datasets.text());
+      fields.schemaVersion.value = datasetRows.find((row) => row?.schema_version)?.schema_version || fields.schemaVersion.value || "2.0.0";
+      state.datasets = datasetRows.map(datasetRecordFromSchema);
+      state.activeDatasetIndex = 0;
+      state.activeGroupIndex = 0;
+      imported.push("datasets.json");
+    } else {
+      missing.push("datasets.json");
+    }
+
+    if (imported.length === 0) {
+      throw new Error("No recognized metadata files were found. Expected files at the folder root or inside data/.");
+    }
+
+    if (state.datasets.length === 0) {
+      state.datasets = [createDatasetRecord()];
+      state.activeDatasetIndex = 0;
+      state.activeGroupIndex = 0;
+    }
+    state.fileGroups = state.datasets[state.activeDatasetIndex]?.fileGroups || [createFileGroup()];
+    syncControlsFromActiveDataset();
+    renderAllMetadataSections();
+    updateCrossrefOptions();
+    updatePreview();
+
+    showImportFile(packageFolderImportFile, getFolderSelectionName(files));
+    packageFolderImportSummary.textContent = [
+      `Imported ${imported.length} metadata file(s): ${imported.join(", ")}.`,
+      missing.length ? `Missing: ${missing.join(", ")}.` : "",
+    ].filter(Boolean).join(" ");
+    packageFolderImportSummary.className = missing.length ? "import-summary warning" : "import-summary ok";
+  } catch (error) {
+    packageFolderImportSummary.textContent = `Could not import metadata folder: ${error.message}`;
+    packageFolderImportSummary.className = "import-summary warning";
+  } finally {
+    packageFolderImport.value = "";
+  }
+}
+
+function clearPackageFolderImport() {
+  fields.schemaVersion.value = "2.0.0";
+  fields.packageName.value = "";
+  fields.packageTitle.value = "";
+
+  fields.studyInternalId.value = "";
+  fields.studyTitle.value = "";
+  fields.studyPreregistration.value = "";
+  fields.studyRegistration.value = "";
+  fields.studyEthics.value = "";
+  fields.studyType.value = "";
+  fields.studyShortDescription.value = "";
+  fields.studySample.value = "";
+  fields.studySetting.value = "";
+  fields.studyGeographicalLocation.value = "";
+  fields.studyIntervention.value = "";
+  fields.studyFundingSources.value = "";
+  fields.studyKeywords.value = "";
+
+  state.studyGroups = [];
+  state.contributors = [];
+  state.participants = [createParticipant()];
+  state.characteristics = [];
+  state.devices = [createDevice()];
+  state.datasheets = [createDatasheet()];
+  state.datasheetImportedFiles = [];
+  state.datasets = [createDatasetRecord()];
+  state.activeDatasetIndex = 0;
+  state.activeGroupIndex = 0;
+  state.fileGroups = state.datasets[0].fileGroups;
+
+  packageFolderImport.value = "";
+  hideImportFile(packageFolderImportFile);
+  packageFolderImportSummary.textContent = "Imported metadata folder removed. Start a new package manually or import another metadata folder.";
+  packageFolderImportSummary.className = "import-summary";
+
+  studyImport.value = "";
+  contributorsImport.value = "";
+  participantsImport.value = "";
+  characteristicsImport.value = "";
+  devicesImport.value = "";
+  datasheetsImport.value = "";
+  datasetImport.value = "";
+  hideImportFile(studyImportFile);
+  hideImportFile(contributorsImportFile);
+  hideImportFile(participantsImportFile);
+  hideImportFile(characteristicsImportFile);
+  hideImportFile(devicesImportFile);
+  hideImportFile(datasheetsImportFile);
+  hideImportFile(datasetImportFile);
+
+  renderAllMetadataSections();
+  syncControlsFromActiveDataset();
+  updateCrossrefOptions();
+  updatePreview();
+}
+
+function populatePackageFieldsFromDataPackage(datapackage) {
+  if (!datapackage || typeof datapackage !== "object") {
+    throw new Error("Expected datapackage.json to contain a datapackage object.");
+  }
+
+  fields.schemaVersion.value = datapackage.schema_version || fields.schemaVersion.value || "2.0.0";
+  fields.packageName.value = datapackage.name || "";
+  fields.packageTitle.value = datapackage.title || "";
+}
+
+function parsePackageRows(file, jsonParser, tableParser) {
+  return file.text().then((text) => isJsonLikeFile(file) ? jsonParser(text) : tableParser(text));
+}
+
+function findPackageMetadataFiles(files) {
+  return {
+    datapackage: findPackageFile(files, ["datapackage.json"]),
+    study: findPackageFile(files, ["study.json"]),
+    participants: findPackageFile(files, ["participants.csv", "participants.tsv", "participants.json"]),
+    characteristics: findPackageFile(files, ["participant_characteristics.csv", "participant_characteristics.tsv", "participant_characteristics.json"]),
+    devices: findPackageFile(files, ["devices.json"]),
+    datasheets: findPackageFile(files, ["device_datasheet.json", "sensor_datasheet.json"]),
+    datasets: findPackageFile(files, ["datasets.json"]),
+  };
+}
+
+function findPackageFile(files, filenames) {
+  const normalizedNames = filenames.map((name) => name.toLowerCase());
+  const matches = files.filter((file) => normalizedNames.includes(file.name.toLowerCase()));
+  return matches.find((file) => packageFilePath(file).toLowerCase().includes("/data/")) || matches[0] || null;
+}
+
+function packageFilePath(file) {
+  return (file.webkitRelativePath || file.name).replace(/\\/g, "/");
+}
+
+function getFolderSelectionName(files) {
+  const firstPath = packageFilePath(files[0] || {});
+  return firstPath.includes("/") ? firstPath.split("/")[0] : "selected folder";
+}
+
+function isJsonLikeFile(file) {
+  return file.name.toLowerCase().endsWith(".json") || file.type === "application/json";
+}
+
+function renderAllMetadataSections() {
+  renderStudyGroups();
+  renderContributors();
+  renderParticipants();
+  renderCharacteristics();
+  renderDevices();
+  renderDatasheets();
+  renderDatasetRecords();
+  renderFileGroups();
+  renderTerms();
+  renderVariables();
 }
 
 const ZIP_SCHEMA_FILES = [
@@ -3575,6 +4168,7 @@ function escapeHtml(value) {
     .replace(/'/g, "&#039;");
 }
 
+initializeTimeZoneOptions();
 renderStudyGroups();
 renderParticipants();
 renderCharacteristics();
@@ -3588,3 +4182,9 @@ renderVariables();
 updateCrossrefOptions();
 updatePreview();
 loadSchemaHelp();
+
+if (window.ResizeObserver && builderPanel) {
+  new ResizeObserver(schedulePreviewHeightSync).observe(builderPanel);
+}
+
+window.addEventListener("resize", schedulePreviewHeightSync);
