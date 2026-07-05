@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>GLC Metadata Builder</title>
-    <link rel="stylesheet" href="styles.css?v=20260704-green-import" />
+    <link rel="stylesheet" href="styles.css?v=20260705-local-package-files-note" />
   </head>
   <body>
     <main class="app-shell">
@@ -13,16 +13,24 @@
           <img class="brand-logo" src="assets/GLC_Logo.png" alt="Global Light Commons logo" />
           <div>
             <p class="eyebrow">Prepare a GLC datapackage</p>
-            <h1>Metadata Builder</h1>
+            <h1>Metadata Builder <span class="title-beta-badge">Beta</span></h1>
           </div>
         </div>
-        <div class="schema-pill">Schema 2.0.0</div>
+        <a
+          class="schema-pill"
+          href="https://github.com/tscnlab/glee-metadata-validator/tree/main"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Schema 2.0.0
+        </a>
       </header>
 
       <section class="workspace">
         <aside class="progress-panel" aria-label="Builder steps">
           <ol>
-            <li class="active" data-step-link="project">Project setup</li>
+            <li class="active" data-step-link="start">Start</li>
+            <li data-step-link="project">Project setup</li>
             <li data-step-link="study">Study</li>
             <li data-step-link="participants">Participants</li>
             <li data-step-link="devices">Devices</li>
@@ -33,7 +41,127 @@
 
         <section class="builder-panel">
           <form id="metadata-form">
-            <section class="form-section builder-step active" data-step="project">
+            <section class="form-section builder-step active" data-step="start">
+              <div class="start-guide">
+                <section class="guide-hero" aria-labelledby="guide-title">
+                  <p class="welcome-eyebrow">Getting started with GLC metadata</p>
+                  <h2 id="guide-title">Make light-exposure and optical-radiation datasets easier to understand, validate, and reuse.</h2>
+                  <p>
+                    The Global Light Commons (GLC) standard provides a shared structure for describing studies,
+                    participants, devices, datasheets, and measurement files for light-exposure and optical-radiation research. This builder guides you through creating
+                    a complete metadata package that can accompany your dataset.
+                  </p>
+                  <p class="privacy-note">
+                    Note: files you select while building the metadata package stay on your computer. They are processed locally in your browser and are not uploaded, transmitted, or stored by this site.
+                  </p>
+                  <div class="actions start-actions">
+                    <button type="button" data-next-step="project">Get started</button>
+                  </div>
+                </section>
+
+                <section class="guide-section" aria-labelledby="why-glc">
+                  <div class="guide-section-heading">
+                    <div>
+                      <h3 id="why-glc">Why researchers use GLC</h3>
+                      <p>GLC metadata makes wearable light-exposure and optical-radiation datasets easier to review, combine, and reuse.</p>
+                    </div>
+                  </div>
+                  <div class="guide-grid">
+                    <div>
+                      <strong>Easier collaboration</strong>
+                      <span>Study, participant, device, and dataset information can be found in predictable places.</span>
+                    </div>
+                    <div>
+                      <strong>Validation-ready</strong>
+                      <span>Links between files can be checked automatically to catch common mistakes.</span>
+                    </div>
+                    <div>
+                      <strong>Reusable data</strong>
+                      <span>Future users can understand what was measured, with which device, and under what conditions.</span>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="guide-section" aria-labelledby="package-structure">
+                  <div class="guide-section-heading">
+                    <div>
+                      <h3 id="package-structure">What you’ll create</h3>
+                      <p>A GLC package links the key parts of a wearable light-exposure or optical-radiation dataset.</p>
+                    </div>
+                  </div>
+                  <div class="glc-flow" aria-label="GLC package relationship">
+                    <span>Study</span>
+                    <span>Participants</span>
+                    <span>Devices &amp; Datasheets</span>
+                    <span>Dataset Files</span>
+                  </div>
+                  <p class="guide-note">The resulting metadata package can be validated and shared alongside your data.</p>
+                </section>
+
+                <section class="guide-section guide-resources" aria-labelledby="next-steps">
+                  <div class="guide-section-heading">
+                    <div>
+                      <h3 id="next-steps">How the builder works</h3>
+                      <p>Work through the pages in order, import existing metadata when available, then export a package for validation.</p>
+                    </div>
+                  </div>
+                  <ol class="builder-flow-list">
+                    <li>Describe your study</li>
+                    <li>Add participants</li>
+                    <li>Document devices and datasheets</li>
+                    <li>Register dataset files</li>
+                    <li>Export a package</li>
+                  </ol>
+                  <p class="guide-note">Expected time: 5–30 minutes.</p>
+                </section>
+
+                <section class="guide-section package-details">
+                  <div class="guide-section-heading">
+                    <div>
+                      <h3>Generated files and package structure</h3>
+                    </div>
+                  </div>
+                  <p>A GLC metadata package keeps package-level metadata at the root and resource metadata in <code>data/</code>.</p>
+                  <pre class="folder-tree" aria-label="Example GLC package structure">glc-metadata-package/
+  datapackage.json
+  data/
+    study.json
+    participants.csv
+    participant_characteristics.csv
+    devices.json
+    device_datasheet.json
+    datasets.json
+    datasets/
+      your-measurement-files.csv</pre>
+                  <div class="metadata-file-list">
+                    <div><code>study.json</code><span>What was the study, who contributed, and which dataset records belong to it?</span></div>
+                    <div><code>participants.csv</code><span>Who or what was measured?</span></div>
+                    <div><code>participant_characteristics.csv</code><span>Which optional participant-level characteristics help interpret the measurements?</span></div>
+                    <div><code>devices.json</code><span>Which devices were used and which datasheets describe them?</span></div>
+                    <div><code>device_datasheet.json</code><span>What sensor, calibration, channel, or spectral details are needed to interpret the device output?</span></div>
+                    <div><code>datasets.json</code><span>Where are the measurement files, what columns do they contain, and how do they link to study, participant, and device IDs?</span></div>
+                  </div>
+                </section>
+
+                <section class="guide-section resource-callout" aria-label="Project resources">
+                  <div class="guide-section-heading">
+                    <div>
+                      <h3>Useful resources</h3>
+                    </div>
+                  </div>
+                  <div class="resource-links">
+                    <a href="https://visualdiet.org" target="_blank" rel="noopener noreferrer">
+                      Learn more about the Global Light Commons initiative
+                    </a>
+                    <a href="https://tscnlab.github.io/glc_dp_viewer/" target="_blank" rel="noopener noreferrer">
+                      View human-readable details of the GLC datapackage structure
+                    </a>
+                  </div>
+                </section>
+              </div>
+            </section>
+
+            <section class="form-section builder-step" data-step="project">
               <div class="section-heading">
                 <span>1</span>
                 <div>
@@ -41,11 +169,15 @@
                   <p>Choose the release version and package-level settings.</p>
                 </div>
               </div>
-              <div class="file-drop compact-upload">
+              <div class="subsection-heading prominent-subsection">
+                <h3>Already have metadata?</h3>
+                <p>Import an existing package folder to review or continue editing it here.</p>
+              </div>
+              <div class="file-drop compact-upload package-folder-upload">
                 <input id="package-folder-import" type="file" webkitdirectory directory multiple />
                 <p id="package-folder-import-file" class="import-file-label" hidden></p>
                 <p id="package-folder-import-summary">
-                  Optional: import a metadata package folder. The builder looks for <code>study.json</code>,
+                  The builder looks for <code>datapackage.json</code>, <code>study.json</code>,
                   <code>participants.csv</code>, <code>participant_characteristics.csv</code>, <code>devices.json</code>,
                   <code>device_datasheet.json</code>, and <code>datasets.json</code> at the folder root or inside <code>data/</code>.
                 </p>
@@ -83,6 +215,7 @@
                 <input id="study-import" type="file" accept=".json,application/json" />
                 <p id="study-import-file" class="import-file-label" hidden></p>
                 <p id="study-import-summary">Optional: import an existing <code>study.json</code> to pre-fill this page.</p>
+                <button type="button" class="small-button primary-import-button" id="import-study-button">Import selected study file</button>
               </div>
               <div class="grid">
                 <label title="Unique identifier for study. Type: string.">
@@ -137,15 +270,15 @@
                   Keywords
                   <input id="study-keywords" type="text" placeholder="Comma-separated, e.g. light, sleep, wearable" />
                 </label>
-                <label class="wide" title="Dataset IDs are generated from the Datasets page. Type: array of strings.">
-                  Study datasets <span class="required">*</span> <span class="generated-badge">generated from Datasets page</span>
+                <label class="wide" title="All dataset IDs for this study are generated from the Datasets page. Type: array of strings.">
+                  All study datasets <span class="required">*</span> <span class="generated-badge">generated from Datasets page</span>
                   <input id="study-datasets-preview" type="text" readonly placeholder="Dataset IDs will appear here after you add dataset records" />
                 </label>
               </div>
 
               <div class="subsection-heading">
                 <h3>Study groups</h3>
-                <p>Optional repeatable groups from <code>study_groups</code>. Inclusion and exclusion criteria can be separated with semicolons.</p>
+                <p>Optional repeatable groups from <code>study_groups</code>. Select the dataset records that belong to each group.</p>
               </div>
               <div class="table-builder">
                 <div id="study-groups-list"></div>
@@ -170,6 +303,7 @@
                   <code>contributor_institution_country</code>.
                   Roles can be separated with semicolons. JSON can be either <code>contributors.json</code> or <code>study.json</code> with <code>study_contributors</code>.
                 </p>
+                <button type="button" class="small-button primary-import-button" id="import-contributors-button">Import selected contributor file</button>
                 <button type="button" class="secondary-button small-button" id="clear-contributors-import">Remove imported contributor file</button>
               </div>
               <div class="table-builder contributor-builder">
@@ -219,6 +353,7 @@
                   <code>participant_sex</code>,
                   <code>participant_gender</code>.
                 </p>
+                <button type="button" class="small-button primary-import-button" id="import-participants-button">Import selected participants file</button>
                 <button type="button" class="secondary-button small-button" id="remove-participants-import">Remove imported participants file</button>
               </div>
               <div class="table-builder">
@@ -244,6 +379,7 @@
                   <code>participant_characteristic_unit</code>,
                   <code>participant_characteristic_description</code>.
                 </p>
+                <button type="button" class="small-button primary-import-button" id="import-characteristics-button">Import selected characteristics file</button>
                 <button type="button" class="secondary-button small-button" id="remove-characteristics-import">Remove imported characteristics file</button>
               </div>
               <div class="table-builder">
@@ -298,7 +434,7 @@
                   <code>device_sensors</code>.
                   Sensor entries can use <code>sensor type | sensor datasheet id</code>, separated by semicolons.
                 </p>
-                <button type="button" class="secondary-button small-button" id="import-devices-button">Import selected devices file</button>
+                <button type="button" class="small-button primary-import-button" id="import-devices-button">Import selected devices file</button>
                 <button type="button" class="secondary-button small-button" id="remove-devices-import">Remove imported devices file</button>
               </div>
               <div class="validation-summary">
@@ -322,7 +458,7 @@
                   Expected fields include <code>datasheet_id</code>, <code>datasheet_manufacturer</code>, <code>datasheet_type</code>,
                   <code>datasheet_model</code>, <code>datasheet_calibration_interval</code>, spectral sensitivity, calibration fields, and channels.
                 </p>
-                <button type="button" class="secondary-button small-button" id="import-datasheets-button">Import selected datasheet file(s)</button>
+                <button type="button" class="small-button primary-import-button" id="import-datasheets-button">Import selected datasheet file(s)</button>
                 <button type="button" class="secondary-button small-button" id="remove-datasheets-import">Remove imported datasheet files</button>
               </div>
               <div id="datasheets-list" class="card-list"></div>
@@ -375,7 +511,7 @@
                 <p id="dataset-import-summary">
                   Optional: import an existing <code>datasets.json</code>. Multiple dataset records are imported as separate participant-level records.
                 </p>
-                <button type="button" class="secondary-button small-button" id="import-dataset-button">Import selected dataset file</button>
+                <button type="button" class="small-button primary-import-button" id="import-dataset-button">Import selected dataset file</button>
                 <button type="button" class="secondary-button small-button" id="remove-dataset-import">Remove imported dataset file</button>
               </div>
 
@@ -619,6 +755,6 @@
     </main>
 
     <datalist id="timezone-options"></datalist>
-    <script src="app.js?v=20260704-datapackage-import-fields"></script>
+    <script src="app.js?v=20260705-explicit-import-flow"></script>
   </body>
 </html>

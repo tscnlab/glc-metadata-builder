@@ -1,5 +1,7 @@
 # GLC metadata builder
 
+<img src="assets/GLC_Logo.png" alt="Global Light Commons logo" width="320">
+
 A browser-based metadata builder for creating GLC/GLEAM metadata packages without hand-editing JSON and CSV files.
 
 Open the hosted builder here:

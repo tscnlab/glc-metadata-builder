@@ -20,7 +20,7 @@ const createFileGroup = (name = "Primary file group") => ({
   variableState: {},
 });
 
-const createStudyGroup = () => ({ name: "", description: "", size: "", inclusion: "", exclusion: "" });
+const createStudyGroup = () => ({ name: "", description: "", size: "", inclusion: "", exclusion: "", datasets: [] });
 const createContributor = () => ({
   fullName: "",
   roles: "",
@@ -110,7 +110,7 @@ const FALLBACK_TIME_ZONES = [
 const initialDataset = createDatasetRecord();
 
 const state = {
-  activeStep: "project",
+  activeStep: "start",
   activeDatasetIndex: 0,
   activeGroupIndex: 0,
   studyGroups: [],
@@ -141,6 +141,7 @@ const datasetImportFile = document.querySelector("#dataset-import-file");
 const datasetImportSummary = document.querySelector("#dataset-import-summary");
 const jsonPreview = document.querySelector("#json-preview");
 const previewTitle = document.querySelector("#preview-title");
+const workspace = document.querySelector(".workspace");
 const builderPanel = document.querySelector(".builder-panel");
 const previewPanel = document.querySelector(".preview-panel");
 const packageSummary = document.querySelector("#package-summary");
@@ -162,18 +163,22 @@ const addTermButton = document.querySelector("#add-term");
 const addDatasetRecordButton = document.querySelector("#add-dataset-record");
 const addFileGroupButton = document.querySelector("#add-file-group");
 const studyImport = document.querySelector("#study-import");
+const importStudyButton = document.querySelector("#import-study-button");
 const studyImportFile = document.querySelector("#study-import-file");
 const studyImportSummary = document.querySelector("#study-import-summary");
 const contributorsImport = document.querySelector("#contributors-import");
+const importContributorsButton = document.querySelector("#import-contributors-button");
 const contributorsImportFile = document.querySelector("#contributors-import-file");
 const contributorsImportSummary = document.querySelector("#contributors-import-summary");
 const clearContributorsImportButton = document.querySelector("#clear-contributors-import");
 const studyGroupsList = document.querySelector("#study-groups-list");
 const contributorsList = document.querySelector("#contributors-list");
 const participantsImport = document.querySelector("#participants-import");
+const importParticipantsButton = document.querySelector("#import-participants-button");
 const participantsImportFile = document.querySelector("#participants-import-file");
 const participantsImportSummary = document.querySelector("#participants-import-summary");
 const characteristicsImport = document.querySelector("#characteristics-import");
+const importCharacteristicsButton = document.querySelector("#import-characteristics-button");
 const characteristicsImportFile = document.querySelector("#characteristics-import-file");
 const characteristicsImportSummary = document.querySelector("#characteristics-import-summary");
 const participantsList = document.querySelector("#participants-list");
@@ -233,11 +238,47 @@ const fields = {
 };
 
 fileInput.addEventListener("change", handleFileSelection);
-studyImport.addEventListener("change", handleStudyImport);
-contributorsImport.addEventListener("change", handleContributorsImport);
-participantsImport.addEventListener("change", handleParticipantsImport);
-characteristicsImport.addEventListener("change", handleCharacteristicsImport);
-devicesImport.addEventListener("change", handleDevicesImport);
+studyImport.addEventListener("change", () => handleMetadataFileSelection(studyImport, studyImportFile, studyImportSummary, "study file", "Import selected study file"));
+importStudyButton.addEventListener("click", () => {
+  const file = studyImport.files?.[0];
+  if (!file) {
+    studyImportSummary.textContent = "Choose a study.json file first, then click Import.";
+    studyImportSummary.className = "import-summary warning";
+    return;
+  }
+  handleStudyImport({ target: studyImport });
+});
+contributorsImport.addEventListener("change", () => handleMetadataFileSelection(contributorsImport, contributorsImportFile, contributorsImportSummary, "contributor file", "Import selected contributor file"));
+importContributorsButton.addEventListener("click", () => {
+  const file = contributorsImport.files?.[0];
+  if (!file) {
+    contributorsImportSummary.textContent = "Choose a contributors JSON/CSV/TSV file first, then click Import.";
+    contributorsImportSummary.className = "import-summary warning";
+    return;
+  }
+  handleContributorsImport({ target: contributorsImport });
+});
+participantsImport.addEventListener("change", () => handleMetadataFileSelection(participantsImport, participantsImportFile, participantsImportSummary, "participants file", "Import selected participants file"));
+importParticipantsButton.addEventListener("click", () => {
+  const file = participantsImport.files?.[0];
+  if (!file) {
+    participantsImportSummary.textContent = "Choose a participants JSON/CSV/TSV file first, then click Import.";
+    participantsImportSummary.className = "import-summary warning";
+    return;
+  }
+  handleParticipantsImport({ target: participantsImport });
+});
+characteristicsImport.addEventListener("change", () => handleMetadataFileSelection(characteristicsImport, characteristicsImportFile, characteristicsImportSummary, "characteristics file", "Import selected characteristics file"));
+importCharacteristicsButton.addEventListener("click", () => {
+  const file = characteristicsImport.files?.[0];
+  if (!file) {
+    characteristicsImportSummary.textContent = "Choose a participant characteristics JSON/CSV/TSV file first, then click Import.";
+    characteristicsImportSummary.className = "import-summary warning";
+    return;
+  }
+  handleCharacteristicsImport({ target: characteristicsImport });
+});
+devicesImport.addEventListener("change", () => handleMetadataFileSelection(devicesImport, devicesImportFile, devicesImportSummary, "devices file", "Import selected devices file"));
 importDevicesButton.addEventListener("click", () => {
   const file = devicesImport.files?.[0];
   if (!file) {
@@ -247,7 +288,7 @@ importDevicesButton.addEventListener("click", () => {
   }
   importDevicesFile(file);
 });
-datasheetsImport.addEventListener("change", handleDatasheetsImport);
+datasheetsImport.addEventListener("change", () => handleMetadataFilesSelection(datasheetsImport, datasheetsImportFile, datasheetsImportSummary, "datasheet file(s)", "Import selected datasheet file(s)"));
 importDatasheetsButton.addEventListener("click", () => {
   const files = Array.from(datasheetsImport.files || []);
   if (files.length === 0) {
@@ -257,7 +298,7 @@ importDatasheetsButton.addEventListener("click", () => {
   }
   importDatasheetsFiles(files);
 });
-datasetImport.addEventListener("change", handleDatasetImport);
+datasetImport.addEventListener("change", () => handleMetadataFileSelection(datasetImport, datasetImportFile, datasetImportSummary, "dataset file", "Import selected dataset file"));
 importDatasetButton.addEventListener("click", () => {
   const file = datasetImport.files?.[0];
   if (!file) {
@@ -827,6 +868,15 @@ async function handleStudyImport(event) {
   try {
     const parsed = JSON.parse(await file.text());
     const study = Array.isArray(parsed) ? parsed[0] : parsed;
+    assertResourceObject(study, [
+      "study_internal_id",
+      "study_title",
+      "study_short_description",
+      "study_sample",
+      "study_groups",
+      "study_contributors",
+      "study_datasets",
+    ], "study.json");
     populateStudyFromSchema(study);
 
     renderStudyGroups();
@@ -837,6 +887,7 @@ async function handleStudyImport(event) {
     studyImportSummary.textContent = `Imported ${file.name}. Datasets remain generated from the Datasets page.`;
     studyImportSummary.className = "import-summary ok";
   } catch (error) {
+    hideImportFile(studyImportFile);
     studyImportSummary.textContent = `Could not import ${file.name}: ${error.message}`;
     studyImportSummary.className = "import-summary warning";
   } finally {
@@ -871,6 +922,7 @@ function populateStudyFromSchema(study) {
         size: group.study_group_size ?? "",
         inclusion: (group.study_group_inclusion || []).join("; "),
         exclusion: (group.study_group_exclusion || []).join("; "),
+        datasets: normalizeStringArray(group.study_group_datasets),
       }))
     : [];
   state.contributors = Array.isArray(study.study_contributors)
@@ -896,6 +948,7 @@ async function handleContributorsImport(event) {
     contributorsImportSummary.textContent = `Imported ${state.contributors.length} contributor row(s) from ${file.name}.`;
     contributorsImportSummary.className = "import-summary ok";
   } catch (error) {
+    hideImportFile(contributorsImportFile);
     contributorsImportSummary.textContent = `Could not import ${file.name}: ${error.message}`;
     contributorsImportSummary.className = "import-summary warning";
   } finally {
@@ -923,14 +976,154 @@ function showImportFile(element, fileName) {
   element.textContent = `Imported file: ${fileName}`;
 }
 
+function showSelectedFile(element, fileName) {
+  element.hidden = false;
+  element.textContent = `Selected file: ${fileName}`;
+}
+
+function showSelectedFiles(element, fileNames) {
+  element.hidden = false;
+  element.textContent = `Selected files: ${fileNames.join(", ")}`;
+}
+
 function hideImportFile(element) {
   element.hidden = true;
   element.textContent = "";
 }
 
+function handleMetadataFileSelection(input, fileLabel, summary, resourceLabel, buttonLabel) {
+  const file = input.files?.[0];
+  if (!file) {
+    hideImportFile(fileLabel);
+    summary.textContent = `Choose a ${resourceLabel} first, then click Import.`;
+    summary.className = "import-summary";
+    return;
+  }
+  showSelectedFile(fileLabel, file.name);
+  summary.textContent = `File selected. Click ${buttonLabel} to load it.`;
+  summary.className = "import-summary";
+}
+
+function handleMetadataFilesSelection(input, fileLabel, summary, resourceLabel, buttonLabel) {
+  const files = Array.from(input.files || []);
+  if (files.length === 0) {
+    hideImportFile(fileLabel);
+    summary.textContent = `Choose ${resourceLabel} first, then click Import.`;
+    summary.className = "import-summary";
+    return;
+  }
+  showSelectedFiles(fileLabel, files.map((file) => file.name));
+  summary.textContent = `${files.length} file(s) selected. Click ${buttonLabel} to load them.`;
+  summary.className = "import-summary";
+}
+
 function isJsonFile(file) {
   return file.name.toLowerCase().endsWith(".json") || file.type === "application/json";
 }
+
+function hasAnyKey(object, keys) {
+  return Boolean(object && typeof object === "object" && keys.some((key) => Object.prototype.hasOwnProperty.call(object, key)));
+}
+
+function assertResourceObject(object, keys, resourceName) {
+  if (!hasAnyKey(object, keys)) {
+    throw new Error(`The selected file is not valid ${resourceName}. Please choose the correct metadata file.`);
+  }
+}
+
+function assertResourceRows(rows, keys, resourceName) {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    throw new Error(`No ${resourceName} rows were found in the uploaded file.`);
+  }
+  if (!rows.some((row) => hasAnyKey(row, keys))) {
+    throw new Error(`The selected file is not valid ${resourceName}. Please choose the correct metadata file.`);
+  }
+}
+
+const RESOURCE_KEYS = {
+  contributors: [
+    "contributor_full_name",
+    "full_name",
+    "name",
+    "contributor_roles",
+    "roles",
+    "contributor_email",
+    "email",
+    "contributor_orcid",
+    "orcid",
+    "contributor_institution",
+    "institution_name",
+  ],
+  participants: [
+    "participant_internal_id",
+    "participant_id",
+    "id",
+    "participant_age",
+    "age",
+    "participant_sex",
+    "sex",
+    "participant_gender",
+    "gender",
+  ],
+  characteristics: [
+    "participant_internal_id",
+    "participant_id",
+    "participant_characteristic_name",
+    "name",
+    "participant_characteristic_value",
+    "value",
+    "participant_characteristic_unit",
+    "unit",
+    "participant_characteristic_description",
+    "description",
+  ],
+  devices: [
+    "device_internal_id",
+    "device_id",
+    "device_manufacturer",
+    "manufacturer",
+    "device_model",
+    "model",
+    "device_serial_number",
+    "serial_number",
+    "device_calibration_date",
+    "calibration_date",
+    "device_firmware_version",
+    "firmware_version",
+    "device_datasheet_id",
+    "datasheet_id",
+    "device_sensors",
+    "sensors",
+  ],
+  datasheets: [
+    "datasheet_id",
+    "id",
+    "datasheet_version",
+    "version",
+    "datasheet_manufacturer",
+    "manufacturer",
+    "datasheet_type",
+    "type",
+    "datasheet_model",
+    "model",
+    "datasheet_calibration_interval",
+    "calibration_interval",
+    "datasheet_calibration_spectral_sensitivity",
+    "spectral_sensitivity",
+    "datasheet_channel",
+    "channels",
+  ],
+  datasets: [
+    "dataset_internal_id",
+    "dataset_crossref",
+    "dataset_device_location",
+    "dataset_sampling_interval",
+    "dataset_datetime",
+    "dataset_timezone",
+    "dataset_location",
+    "dataset_file",
+  ],
+};
 
 function contributorsFromJson(text) {
   const parsed = JSON.parse(text);
@@ -946,11 +1139,14 @@ function contributorsFromJson(text) {
     throw new Error("Expected contributors.json as an array, or study.json with study_contributors.");
   }
 
+  assertResourceRows(contributors, RESOURCE_KEYS.contributors, "contributors metadata");
   return contributors.map(contributorFromSchema);
 }
 
 function contributorsFromTable(text) {
-  return parseTableText(text).map((row) => ({
+  const rows = parseTableText(text);
+  assertResourceRows(rows, RESOURCE_KEYS.contributors, "contributors metadata");
+  return rows.map((row) => ({
     fullName: row.contributor_full_name || row.full_name || row.name || "",
     roles: row.contributor_roles || row.roles || "",
     email: row.contributor_email || row.email || "",
@@ -983,7 +1179,9 @@ function normalizeContributorRoles(roles) {
 
 function renderStudyGroups() {
   studyGroupsList.innerHTML = "";
+  const datasetIds = getDatasetIdOptions();
   state.studyGroups.forEach((group, index) => {
+    group.datasets = normalizeStringArray(group.datasets);
     const row = document.createElement("div");
     row.className = "participant-card";
     const help = state.studyGroupHelp || {};
@@ -992,6 +1190,26 @@ function renderStudyGroups() {
     const sizeHelp = schemaHelpTitle(help.study_group_size, "Sample size");
     const inclusionHelp = schemaHelpTitle(help.study_group_inclusion, "Inclusion criteria for sample group; separate multiple criteria with semicolons");
     const exclusionHelp = schemaHelpTitle(help.study_group_exclusion, "Exclusion criteria for sample group; separate multiple criteria with semicolons");
+    const datasetsHelp = schemaHelpTitle(help.study_group_datasets, "Dataset internal IDs linked to this study group");
+    const missingDatasetIds = group.datasets.filter((datasetId) => !datasetIds.includes(datasetId));
+    const selectedDatasetCount = group.datasets.length;
+    const availableDatasetIds = datasetIds.filter((datasetId) => !group.datasets.includes(datasetId));
+    const datasetOptions = availableDatasetIds.map((datasetId) => `
+      <option value="${escapeHtml(datasetId)}">${escapeHtml(datasetId)}</option>
+    `).join("");
+    const selectedDatasetList = group.datasets.length
+      ? group.datasets.map((datasetId) => `
+        <li class="${datasetIds.includes(datasetId) ? "" : "missing-selection"}">
+          <span>${escapeHtml(datasetId)}${datasetIds.includes(datasetId) ? "" : " (not found)"}</span>
+          <button type="button" class="remove-selected-dataset" data-remove-dataset-id="${escapeHtml(datasetId)}" aria-label="Remove ${escapeHtml(datasetId)}">X</button>
+        </li>
+      `).join("")
+      : `<li class="empty-selection">No datasets selected for this study group yet.</li>`;
+    const missingNote = missingDatasetIds.length ? `
+      <p class="choice-note warning-note">
+        Some selected dataset IDs are no longer present on the Datasets page.
+      </p>
+    ` : "";
     row.innerHTML = `
       <div class="record-card-heading">
         <h3>Study group ${index + 1}</h3>
@@ -1013,11 +1231,45 @@ function renderStudyGroups() {
         <label class="wide" title="${escapeHtml(exclusionHelp)}">Exclusion criteria ${helpMarker(exclusionHelp)}
           <input value="${escapeHtml(group.exclusion)}" data-field="exclusion" placeholder="Shift work; eye disease" title="${escapeHtml(exclusionHelp)}" />
         </label>
+        <fieldset class="wide linked-dataset-field" title="${escapeHtml(datasetsHelp)}">
+          <legend>Select datasets for this group <span class="required">*</span> ${helpMarker(datasetsHelp)}</legend>
+          <p class="choice-note">
+            Choose only the dataset records that belong to this study group.
+            <span data-selected-dataset-count>${selectedDatasetCount}</span> selected.
+          </p>
+          <label class="dataset-select-label">Add dataset
+            <select data-add-dataset ${availableDatasetIds.length ? "" : "disabled"}>
+              <option value="">${datasetIds.length ? (availableDatasetIds.length ? "Choose a dataset..." : "All datasets selected") : "Add dataset records on the Datasets page first"}</option>
+              ${datasetOptions}
+            </select>
+          </label>
+          <ul class="selected-dataset-list">
+            ${selectedDatasetList}
+          </ul>
+          ${missingNote}
+        </fieldset>
       </div>
     `;
-    row.querySelectorAll("input").forEach((input) => {
+    row.querySelectorAll("[data-field]").forEach((input) => {
       input.addEventListener("input", () => {
         group[input.dataset.field] = input.value.trim();
+        updatePreview();
+      });
+    });
+    row.querySelector("[data-add-dataset]")?.addEventListener("change", (event) => {
+      const datasetId = event.target.value;
+      if (!datasetId || group.datasets.includes(datasetId)) {
+        event.target.value = "";
+        return;
+      }
+      group.datasets = [...group.datasets, datasetId];
+      renderStudyGroups();
+      updatePreview();
+    });
+    row.querySelectorAll("[data-remove-dataset-id]").forEach((button) => {
+      button.addEventListener("click", () => {
+        group.datasets = group.datasets.filter((datasetId) => datasetId !== button.dataset.removeDatasetId);
+        renderStudyGroups();
         updatePreview();
       });
     });
@@ -1034,6 +1286,21 @@ function addStudyGroup() {
   state.studyGroups.push(createStudyGroup());
   renderStudyGroups();
   updatePreview();
+}
+
+function getDatasetIdOptions() {
+  return Array.from(new Set(state.datasets.map((dataset) => dataset.datasetId).filter(Boolean)));
+}
+
+let studyGroupDatasetOptionsSignature = "";
+
+function refreshStudyGroupsForDatasetOptions() {
+  const signature = getDatasetIdOptions().join("\u001f");
+  if (signature === studyGroupDatasetOptionsSignature) {
+    return;
+  }
+  studyGroupDatasetOptionsSignature = signature;
+  renderStudyGroups();
 }
 
 function renderContributors() {
@@ -1119,6 +1386,7 @@ async function handleParticipantsImport(event) {
     participantsImportSummary.textContent = `Imported ${state.participants.length} participant row(s) from ${file.name}.`;
     participantsImportSummary.className = "import-summary ok";
   } catch (error) {
+    hideImportFile(participantsImportFile);
     participantsImportSummary.textContent = `Could not import ${file.name}: ${error.message}`;
     participantsImportSummary.className = "import-summary warning";
   } finally {
@@ -1144,6 +1412,7 @@ async function handleCharacteristicsImport(event) {
     characteristicsImportSummary.textContent = `Imported ${state.characteristics.length} characteristic row(s) from ${file.name}.`;
     characteristicsImportSummary.className = "import-summary ok";
   } catch (error) {
+    hideImportFile(characteristicsImportFile);
     characteristicsImportSummary.textContent = `Could not import ${file.name}: ${error.message}`;
     characteristicsImportSummary.className = "import-summary warning";
   } finally {
@@ -1163,11 +1432,14 @@ function participantsFromJson(text) {
     throw new Error("Expected participants.json as an array, or an object with a participants array.");
   }
 
+  assertResourceRows(rows, RESOURCE_KEYS.participants, "participants metadata");
   return rows.map(participantFromSchema);
 }
 
 function participantsFromTable(text) {
-  return parseTableText(text).map(participantFromSchema);
+  const rows = parseTableText(text);
+  assertResourceRows(rows, RESOURCE_KEYS.participants, "participants metadata");
+  return rows.map(participantFromSchema);
 }
 
 function participantFromSchema(row) {
@@ -1193,11 +1465,14 @@ function characteristicsFromJson(text) {
     throw new Error("Expected participant characteristics as an array, or an object with participant_characteristics.");
   }
 
+  assertResourceRows(rows, RESOURCE_KEYS.characteristics, "participant characteristics metadata");
   return rows.map(characteristicFromSchema);
 }
 
 function characteristicsFromTable(text) {
-  return parseTableText(text).map(characteristicFromSchema);
+  const rows = parseTableText(text);
+  assertResourceRows(rows, RESOURCE_KEYS.characteristics, "participant characteristics metadata");
+  return rows.map(characteristicFromSchema);
 }
 
 function characteristicFromSchema(row) {
@@ -1253,14 +1528,15 @@ async function importDevicesFile(file) {
 
   try {
     const text = await file.text();
-    state.devices = isJsonFile(file)
+    const importedDevices = isJsonFile(file)
       ? devicesFromJson(text)
       : devicesFromTable(text);
 
-    if (state.devices.length === 0) {
+    if (importedDevices.length === 0) {
       throw new Error("No device rows were found in the uploaded file.");
     }
 
+    state.devices = importedDevices;
     renderDevices();
     updateCrossrefOptions();
     updatePreview();
@@ -1268,6 +1544,7 @@ async function importDevicesFile(file) {
     devicesImportSummary.textContent = `Imported ${state.devices.length} device row(s) from ${file.name}. Datasheet IDs can be finalized in the datasheet section below.`;
     devicesImportSummary.className = "import-summary ok";
   } catch (error) {
+    hideImportFile(devicesImportFile);
     devicesImportSummary.textContent = `Could not import ${file.name}: ${error.message}`;
     devicesImportSummary.className = "import-summary warning";
   } finally {
@@ -1289,11 +1566,14 @@ function devicesFromJson(text) {
     throw new Error("Expected devices.json as an array, a single device object, or an object with a devices array.");
   }
 
+  assertResourceRows(rows, RESOURCE_KEYS.devices, "devices metadata");
   return rows.map(deviceFromSchema);
 }
 
 function devicesFromTable(text) {
-  return parseTableText(text).map(deviceFromSchema);
+  const rows = parseTableText(text);
+  assertResourceRows(rows, RESOURCE_KEYS.devices, "devices metadata");
+  return rows.map(deviceFromSchema);
 }
 
 function deviceFromSchema(row) {
@@ -1360,15 +1640,14 @@ async function importDatasheetsFiles(files) {
 
   try {
     const parsedRows = [];
+    const parsedFileNames = [];
     for (const file of files) {
       const text = await file.text();
       const rows = isJsonFile(file)
         ? datasheetsFromJson(text)
         : datasheetsFromTable(text);
       parsedRows.push(...rows);
-      if (!state.datasheetImportedFiles.includes(file.name)) {
-        state.datasheetImportedFiles.push(file.name);
-      }
+      parsedFileNames.push(file.name);
     }
 
     if (parsedRows.length === 0) {
@@ -1376,6 +1655,11 @@ async function importDatasheetsFiles(files) {
     }
 
     const result = upsertDatasheets(parsedRows);
+    parsedFileNames.forEach((fileName) => {
+      if (!state.datasheetImportedFiles.includes(fileName)) {
+        state.datasheetImportedFiles.push(fileName);
+      }
+    });
     renderDatasheets();
     renderDevices();
     updateCrossrefOptions();
@@ -1384,6 +1668,7 @@ async function importDatasheetsFiles(files) {
     datasheetsImportSummary.textContent = `Imported ${parsedRows.length} datasheet row(s): ${result.added} added, ${result.updated} updated. Types: ${summarizeDatasheetTypes(parsedRows)}.`;
     datasheetsImportSummary.className = "import-summary ok";
   } catch (error) {
+    hideImportFile(datasheetsImportFile);
     datasheetsImportSummary.textContent = `Could not import datasheet file(s): ${error.message}`;
     datasheetsImportSummary.className = "import-summary warning";
   } finally {
@@ -1441,11 +1726,14 @@ function datasheetsFromJson(text) {
     throw new Error("Expected a datasheet array, a single datasheet object, or an object with a datasheets array.");
   }
 
+  assertResourceRows(rows, RESOURCE_KEYS.datasheets, "datasheet metadata");
   return rows.map(datasheetFromSchema);
 }
 
 function datasheetsFromTable(text) {
-  return parseTableText(text).map(datasheetFromSchema);
+  const rows = parseTableText(text);
+  assertResourceRows(rows, RESOURCE_KEYS.datasheets, "datasheet metadata");
+  return rows.map(datasheetFromSchema);
 }
 
 function datasheetFromSchema(row) {
@@ -1544,6 +1832,7 @@ async function importDatasetFile(file) {
     datasetImportSummary.textContent = `Imported ${rows.length} dataset record(s) from ${file.name}.`;
     datasetImportSummary.className = "import-summary ok";
   } catch (error) {
+    hideImportFile(datasetImportFile);
     datasetImportSummary.textContent = `Could not import ${file.name}: ${error.message}`;
     datasetImportSummary.className = "import-summary warning";
   } finally {
@@ -1565,6 +1854,7 @@ function datasetRowsFromJson(text) {
     throw new Error("Expected datasets.json as an array, a single dataset object, or an object with a datasets array.");
   }
 
+  assertResourceRows(rows, RESOURCE_KEYS.datasets, "datasets metadata");
   return rows;
 }
 
@@ -2967,14 +3257,16 @@ function buildStudyDraft() {
 }
 
 function buildStudyGroups() {
+  const validDatasetIds = new Set(getDatasetIdOptions());
   const groups = state.studyGroups
-    .filter((entry) => entry.name || entry.description || entry.size || entry.inclusion || entry.exclusion)
+    .filter((entry) => entry.name || entry.description || entry.size || entry.inclusion || entry.exclusion || normalizeStringArray(entry.datasets).length)
     .map((entry) => ({
       study_group_name: entry.name,
       study_group_description: entry.description || null,
       study_group_size: entry.size === "" ? null : Number(entry.size),
       study_group_inclusion: splitSemicolonList(entry.inclusion),
       study_group_exclusion: splitSemicolonList(entry.exclusion),
+      study_group_datasets: normalizeStringArray(entry.datasets).filter((datasetId) => validDatasetIds.has(datasetId)),
     }));
   return groups.length ? groups : null;
 }
@@ -3181,6 +3473,13 @@ function splitSemicolonList(value) {
   return items.length ? items : null;
 }
 
+function normalizeStringArray(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map((entry) => String(entry).trim()).filter(Boolean);
+}
+
 function buildParticipantsCsv() {
   return rowsToCsv([
     "participant_internal_id",
@@ -3215,7 +3514,7 @@ function csvEscape(value) {
 }
 
 function getPreviewPayload() {
-  if (state.activeStep === "project" || state.activeStep === "export") return buildDataPackage();
+  if (state.activeStep === "start" || state.activeStep === "project" || state.activeStep === "export") return buildDataPackage();
   if (state.activeStep === "study") return buildStudyDraft();
   if (state.activeStep === "participants") {
     return {
@@ -3235,6 +3534,7 @@ function getPreviewPayload() {
 
 function getPreviewTitle() {
   const titles = {
+    start: "datapackage.json preview",
     project: "datapackage.json preview",
     study: "study.json preview",
     participants: "participant tables preview",
@@ -3247,11 +3547,18 @@ function getPreviewTitle() {
 }
 
 function updatePreview() {
+  syncWorkspaceMode();
+  refreshStudyGroupsForDatasetOptions();
   const payload = getPreviewPayload();
   previewTitle.textContent = getPreviewTitle();
   jsonPreview.textContent = JSON.stringify(payload, null, 2);
   schedulePreviewHeightSync();
   updatePackageSummary();
+}
+
+function syncWorkspaceMode() {
+  if (!workspace) return;
+  workspace.classList.toggle("start-mode", state.activeStep === "start");
 }
 
 let previewHeightFrame = null;
@@ -3456,6 +3763,7 @@ function timeZoneIssueMessage(label, value) {
 function validateStudyForExport() {
   const issues = [];
   const datasetIds = buildDatasetDraft().map((entry) => entry.dataset_internal_id).filter(Boolean);
+  const datasetIdSet = new Set(datasetIds);
   [
     [getStudyId(), "Study internal ID is missing."],
     [fields.studyTitle.value, "Study title is missing."],
@@ -3469,6 +3777,20 @@ function validateStudyForExport() {
       issues.push(validationIssue("Study", message));
     }
   });
+  state.studyGroups
+    .filter((entry) => entry.name || entry.description || entry.size || entry.inclusion || entry.exclusion || normalizeStringArray(entry.datasets).length)
+    .forEach((group, index) => {
+      const label = group.name || `study group ${index + 1}`;
+      const selectedDatasetIds = normalizeStringArray(group.datasets);
+      if (selectedDatasetIds.length === 0) {
+        issues.push(validationIssue("Study", `Study group ${label}: at least one linked dataset is required.`));
+      }
+      selectedDatasetIds
+        .filter((datasetId) => !datasetIdSet.has(datasetId))
+        .forEach((datasetId) => {
+          issues.push(validationIssue("Study", `Study group ${label}: linked dataset "${datasetId}" does not exist in datasets.json.`));
+        });
+    });
   return issues;
 }
 
@@ -3732,7 +4054,7 @@ function handlePackageFolderSelection(event) {
   }
 
   const folderName = getFolderSelectionName(files);
-  showImportFile(packageFolderImportFile, `${folderName} (${files.length} file(s))`);
+  showSelectedFile(packageFolderImportFile, `${folderName} (${files.length} file(s))`);
   packageFolderImportSummary.textContent = "Folder selected. Click Import selected metadata folder to load recognized metadata files.";
   packageFolderImportSummary.className = "import-summary";
 }

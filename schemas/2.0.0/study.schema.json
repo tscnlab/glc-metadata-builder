@@ -92,10 +92,19 @@
             "items": {
               "type": "string"
             }
+          },
+          "study_group_datasets": {
+            "type": "array",
+            "description": "Dataset internal IDs linked to this study group",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
           }
         },
         "required": [
-          "study_group_name"
+          "study_group_name",
+          "study_group_datasets"
         ]
       }
     },
