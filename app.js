@@ -1,13 +1,40 @@
+const FILE_SENSOR_MODALITIES = new Set(["light", "accelerometry", "temperature", "humidity", "air_pollution"]);
+const FILE_NON_DEVICE_MODALITIES = new Set(["questionnaire", "diary", "wear_log"]);
+
+const cloneJson = (value) => value === undefined ? undefined : JSON.parse(JSON.stringify(value));
+const valuesEqual = (left, right) => JSON.stringify(left) === JSON.stringify(right);
+const createBuilderId = (prefix) => `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
+
 const createFileGroup = (name = "Primary file group") => ({
+  templateGroupId: "",
   name,
   files: [],
   columns: [],
+  modalities: [],
+  modalityOther: "",
+  modalityOtherType: "",
+  instrumentType: "",
+  instrumentName: "",
+  collectionMethod: "",
+  softwareName: "",
+  collectionMethodOther: "",
+  recordedBy: "",
+  recordedByOther: "",
+  deviceId: "",
+  deviceLocation: "",
+  deviceLocationType: "",
+  temporalResolutionType: "fixed_interval",
+  samplingInterval: "",
+  temporalResolutionUnit: "",
+  instructions: "",
   delimiter: ",",
   headerRow: "",
   fileFormat: "",
   encoding: "",
   fileTimezone: "",
   auxiliary: "",
+  role: "",
+  dataState: "",
   preprocessingBol: "",
   preprocessingDesc: "",
   datetimeSource: "column",
@@ -47,8 +74,14 @@ const createDatasheet = () => ({
   version: "",
   manufacturer: "",
   type: "",
+  modalities: [],
+  modalityOther: "",
   model: "",
   calibrationInterval: "",
+  calibrationMethod: "",
+  calibrationAccuracy: "",
+  calibrationNotes: "",
+  calibrationParametersText: "",
   spectralSensitivityText: "",
   linearity: "",
   directionalResponse: "",
@@ -59,6 +92,7 @@ const createDatasheet = () => ({
 const createDatasetRecord = () => ({
   datasetId: "",
   studyId: "",
+  participantAssociated: true,
   participantId: "",
   deviceId: "",
   deviceLocation: "",
@@ -67,6 +101,8 @@ const createDatasetRecord = () => ({
   latitude: "",
   longitude: "",
   instructions: "",
+  templateId: "",
+  excludedTemplateGroupIds: [],
   fileGroups: [createFileGroup()],
 });
 
@@ -121,6 +157,9 @@ const state = {
   datasheets: [createDatasheet()],
   datasheetImportedFiles: [],
   datasets: [initialDataset],
+  datasetTemplates: [],
+  templateDraft: createDatasetRecord(),
+  activeTemplateEditorId: "",
   fileGroups: initialDataset.fileGroups,
   supportedTimeZones: [],
   supportedTimeZoneSet: new Set(),
@@ -162,6 +201,14 @@ const copyButton = document.querySelector("#copy-json");
 const addTermButton = document.querySelector("#add-term");
 const addDatasetRecordButton = document.querySelector("#add-dataset-record");
 const addFileGroupButton = document.querySelector("#add-file-group");
+const datasetTemplateName = document.querySelector("#dataset-template-name");
+const datasetTemplateSelect = document.querySelector("#dataset-template-select");
+const datasetTemplateStatus = document.querySelector("#dataset-template-status");
+const datasetTemplateSaveStatus = document.querySelector("#dataset-template-save-status");
+const datasetTemplateParticipants = document.querySelector("#dataset-template-participants");
+const excludedTemplateGroupSelect = document.querySelector("#excluded-template-group-select");
+const templateEditorSelect = document.querySelector("#template-editor-select");
+const templateEditorStatus = document.querySelector("#template-editor-status");
 const studyImport = document.querySelector("#study-import");
 const importStudyButton = document.querySelector("#import-study-button");
 const studyImportFile = document.querySelector("#study-import-file");
@@ -214,10 +261,24 @@ const fields = {
   studyDatasetsPreview: document.querySelector("#study-datasets-preview"),
   datasetId: document.querySelector("#dataset-id"),
   studyId: document.querySelector("#study-id"),
+  participantAssociated: document.querySelector("#participant-associated"),
   participantId: document.querySelector("#participant-id"),
+  fileModality: document.querySelector("#file-modality-field"),
+  fileModalityOther: document.querySelector("#file-modality-other"),
+  fileModalityOtherType: document.querySelector("#file-modality-other-type"),
+  fileInstrumentType: document.querySelector("#file-instrument-type"),
+  fileInstrumentName: document.querySelector("#file-instrument-name"),
+  fileCollectionMethod: document.querySelector("#file-collection-method"),
+  fileSoftwareName: document.querySelector("#file-software-name"),
+  fileCollectionMethodOther: document.querySelector("#file-collection-method-other"),
+  fileRecordedBy: document.querySelector("#file-recorded-by"),
+  fileRecordedByOther: document.querySelector("#file-recorded-by-other"),
   deviceId: document.querySelector("#device-id"),
   deviceLocation: document.querySelector("#device-location"),
+  deviceLocationType: document.querySelector("#device-location-type"),
+  temporalResolutionType: document.querySelector("#temporal-resolution-type"),
   samplingInterval: document.querySelector("#sampling-interval"),
+  temporalResolutionUnit: document.querySelector("#temporal-resolution-unit"),
   datasetTimezone: document.querySelector("#dataset-timezone"),
   latitude: document.querySelector("#latitude"),
   longitude: document.querySelector("#longitude"),
@@ -233,6 +294,8 @@ const fields = {
   headerRow: document.querySelector("#header-row"),
   fileTimezone: document.querySelector("#file-timezone"),
   auxiliary: document.querySelector("#auxiliary"),
+  fileRole: document.querySelector("#file-role"),
+  dataState: document.querySelector("#data-state"),
   preprocessingBol: document.querySelector("#preprocessing-bol"),
   preprocessingDesc: document.querySelector("#preprocessing-desc"),
 };
@@ -314,6 +377,16 @@ copyButton.addEventListener("click", copyPreview);
 addTermButton.addEventListener("click", addTerm);
 addDatasetRecordButton.addEventListener("click", addDatasetRecord);
 addFileGroupButton.addEventListener("click", addFileGroup);
+document.querySelector("#save-dataset-template").addEventListener("click", saveActiveDatasetAsTemplate);
+document.querySelector("#create-linked-dataset").addEventListener("click", createLinkedDatasetFromTemplate);
+document.querySelector("#update-dataset-template").addEventListener("click", updateSelectedDatasetTemplate);
+document.querySelector("#detach-dataset-template").addEventListener("click", detachActiveDatasetFromTemplate);
+document.querySelector("#restore-template-group").addEventListener("click", restoreExcludedTemplateGroup);
+datasetTemplateSelect.addEventListener("change", renderDatasetTemplateTools);
+templateEditorSelect.addEventListener("change", () => {
+  if (templateEditorSelect.value) loadTemplateDraft(templateEditorSelect.value);
+  else startNewTemplateDraft();
+});
 document.querySelector("#add-study-group").addEventListener("click", addStudyGroup);
 document.querySelector("#add-contributor").addEventListener("click", addContributor);
 document.querySelector("#clear-all-contributors").addEventListener("click", () => clearAllContributors());
@@ -347,6 +420,7 @@ importPackageFolderButton.addEventListener("click", () => {
 });
 removePackageFolderImportButton.addEventListener("click", clearPackageFolderImport);
 document.querySelector("#download-package-zip").addEventListener("click", downloadPackageZip);
+document.querySelector("#download-builder-project").addEventListener("click", () => downloadText("glc-builder-project.json", JSON.stringify(buildBuilderProject(), null, 2), "application/json"));
 document.querySelector("#download-datapackage").addEventListener("click", () => downloadText("datapackage.json", JSON.stringify(buildDataPackage(), null, 2), "application/json"));
 document.querySelector("#download-study").addEventListener("click", () => downloadText("study.json", JSON.stringify(buildStudyDraft(), null, 2), "application/json"));
 document.querySelector("#download-participants").addEventListener("click", () => downloadText("participants.csv", buildParticipantsCsv(), "text/csv"));
@@ -495,14 +569,27 @@ document.querySelectorAll(".help-marker").forEach(prepareHelpMarker);
 
 function handleFormInput() {
   syncDatasetControlsIfNeeded();
+  syncParticipantAssociationControls();
+  syncDeviceLocationTypeControls();
+  syncTemporalResolutionControls();
+  syncFileModalityControls();
+  syncFileRoleDataStateControls();
   updateCrossrefOptions();
   syncDatetimeControls();
   renderDatasetRecords();
   updatePreview();
 }
 
-function handleFormChange() {
+function handleFormChange(event) {
+  if (event?.target === fields.schemaVersion) {
+    loadSchemaHelp(fields.schemaVersion.value);
+  }
   syncDatasetControlsIfNeeded();
+  syncParticipantAssociationControls();
+  syncDeviceLocationTypeControls();
+  syncTemporalResolutionControls();
+  syncFileModalityControls();
+  syncFileRoleDataStateControls();
   updateCrossrefOptions();
   syncDatetimeControls();
   renderDatasetRecords();
@@ -511,7 +598,7 @@ function handleFormChange() {
 }
 
 function setStep(step) {
-  if (state.activeStep === "datasets") {
+  if (state.activeStep === "datasets" || state.activeStep === "templates") {
     syncActiveDatasetFromControls();
   } else {
     syncActiveGroupFromControls();
@@ -523,14 +610,20 @@ function setStep(step) {
   document.querySelectorAll("[data-step-link]").forEach((item) => {
     item.classList.toggle("active", item.dataset.stepLink === step);
   });
+  placeDatasetEditor(step);
   updateCrossrefOptions();
-  if (step === "datasets") {
+  if (step === "datasets" || step === "templates") {
+    state.fileGroups = activeDataset().fileGroups;
+    state.activeGroupIndex = Math.min(state.activeGroupIndex, state.fileGroups.length - 1);
     syncControlsFromActiveDataset();
+    placeDatasetEditor(step);
   }
+  renderTemplateEditorControls();
   updatePreview();
 }
 
 function activeDataset() {
+  if (state.activeStep === "templates") return state.templateDraft;
   return state.datasets[state.activeDatasetIndex];
 }
 
@@ -539,8 +632,81 @@ function activeGroup() {
 }
 
 function syncDatasetControlsIfNeeded() {
-  if (state.activeStep === "datasets") {
+  if (state.activeStep === "datasets" || state.activeStep === "templates") {
     syncActiveDatasetFromControls();
+  }
+}
+
+function placeDatasetEditor(step) {
+  const workspace = document.querySelector("#dataset-editor-workspace");
+  const destination = step === "templates"
+    ? document.querySelector("#template-editor-host")
+    : document.querySelector("#dataset-editor-home");
+  if (workspace && destination && workspace.parentElement !== destination) destination.appendChild(workspace);
+  const templateMode = step === "templates";
+  ["#dataset-id-field", "#dataset-participant-id-field"].forEach((selector) => {
+    const element = document.querySelector(selector);
+    if (element) element.hidden = templateMode;
+  });
+  const participantAssociation = document.querySelector("#participant-associated-field");
+  if (participantAssociation && templateMode) {
+    participantAssociation.hidden = !String(fields.schemaVersion.value || "2.0.0").startsWith("3.");
+  }
+}
+
+function startNewTemplateDraft() {
+  if (state.activeStep === "templates") syncActiveDatasetFromControls();
+  state.activeTemplateEditorId = "";
+  state.templateDraft = createDatasetRecord();
+  state.templateDraft.studyId = getStudyId();
+  state.fileGroups = state.templateDraft.fileGroups;
+  state.activeGroupIndex = 0;
+  syncControlsFromActiveDataset();
+  placeDatasetEditor("templates");
+  renderTemplateEditorControls();
+  renderDatasetTemplateTools();
+  updatePreview();
+}
+
+function loadTemplateDraft(templateId) {
+  if (state.activeStep === "templates") syncActiveDatasetFromControls();
+  const template = state.datasetTemplates.find((entry) => entry.templateId === templateId);
+  state.activeTemplateEditorId = template?.templateId || "";
+  state.templateDraft = template ? cloneJson(template.dataset) : createDatasetRecord();
+  state.templateDraft.templateId = template?.templateId || "";
+  state.fileGroups = state.templateDraft.fileGroups;
+  state.activeGroupIndex = 0;
+  syncControlsFromActiveDataset();
+  placeDatasetEditor("templates");
+  renderTemplateEditorControls();
+  renderDatasetTemplateTools();
+  updatePreview();
+}
+
+function renderTemplateEditorControls() {
+  if (!templateEditorSelect) return;
+  templateEditorSelect.innerHTML = '<option value="">Create a new template</option>'
+    + state.datasetTemplates.map((template) => `<option value="${escapeHtml(template.templateId)}">${escapeHtml(template.name)}</option>`).join("");
+  templateEditorSelect.value = state.activeTemplateEditorId;
+  if (state.activeStep === "templates") {
+    const template = state.datasetTemplates.find((entry) => entry.templateId === state.activeTemplateEditorId);
+    templateEditorStatus.innerHTML = template
+      ? `<strong>Editing:</strong> ${escapeHtml(template.name)}. Changes are saved only when you select Update template below.`
+      : "<strong>Creating a new template.</strong> Configure it below and save it at the end of this page, or select a saved template to edit.";
+  }
+}
+
+function syncParticipantAssociationControls() {
+  const schema3 = String(fields.schemaVersion.value || "2.0.0").startsWith("3.");
+  const associated = fields.participantAssociated.value !== "false";
+  document.querySelector("#participant-associated-field").hidden = !schema3;
+  fields.participantId.disabled = schema3 && !associated;
+  fields.participantId.required = !schema3 || associated;
+  document.querySelector("#participant-id-required").hidden = schema3 && !associated;
+  if (schema3 && !associated) {
+    fields.participantId.value = "";
+    const dataset = activeDataset();
+    if (dataset) dataset.participantId = "";
   }
 }
 
@@ -552,14 +718,17 @@ function syncActiveDatasetFromControls() {
   syncActiveGroupFromControls();
   dataset.datasetId = fields.datasetId.value.trim();
   dataset.studyId = fields.studyId.value;
+  dataset.participantAssociated = fields.participantAssociated.value !== "false";
   dataset.participantId = fields.participantId.value;
-  dataset.deviceId = fields.deviceId.value;
-  dataset.deviceLocation = fields.deviceLocation.value.trim();
-  dataset.samplingInterval = fields.samplingInterval.value;
+  if (!String(fields.schemaVersion.value || "2.0.0").startsWith("3.")) {
+    dataset.deviceId = fields.deviceId.value;
+    dataset.deviceLocation = fields.deviceLocation.value.trim();
+    dataset.samplingInterval = fields.samplingInterval.value;
+    dataset.instructions = fields.instructions.value.trim();
+  }
   dataset.datasetTimezone = fields.datasetTimezone.value.trim();
   dataset.latitude = fields.latitude.value.trim();
   dataset.longitude = fields.longitude.value.trim();
-  dataset.instructions = fields.instructions.value.trim();
   dataset.fileGroups = state.fileGroups;
 }
 
@@ -571,14 +740,12 @@ function syncControlsFromActiveDataset() {
 
   fields.datasetId.value = dataset.datasetId || "";
   setPendingSelectValue(fields.studyId, dataset.studyId || "");
+  fields.participantAssociated.value = String(dataset.participantAssociated !== false);
   setPendingSelectValue(fields.participantId, dataset.participantId || "");
-  setPendingSelectValue(fields.deviceId, dataset.deviceId || "");
-  fields.deviceLocation.value = dataset.deviceLocation || "";
-  fields.samplingInterval.value = dataset.samplingInterval ?? "";
+  syncParticipantAssociationControls();
   fields.datasetTimezone.value = dataset.datasetTimezone || "";
   fields.latitude.value = dataset.latitude || "";
   fields.longitude.value = dataset.longitude || "";
-  fields.instructions.value = dataset.instructions || "";
 
   state.fileGroups = dataset.fileGroups?.length ? dataset.fileGroups : [createFileGroup()];
   dataset.fileGroups = state.fileGroups;
@@ -689,16 +856,16 @@ function clearStudyPage() {
   updatePreview();
 }
 
-async function loadSchemaHelp() {
+async function loadSchemaHelp(schemaVersion = fields.schemaVersion.value || "2.0.0") {
   try {
     const [studySchema, contributorSchema, participantsSchema, characteristicsSchema, deviceSchema, datasheetSchema, datasetSchema] = await Promise.all([
-      fetch("schemas/2.0.0/study.schema.json").then((response) => response.json()),
-      fetch("schemas/2.0.0/contributor.schema.json").then((response) => response.json()),
-      fetch("schemas/2.0.0/participants.schema.json").then((response) => response.json()),
-      fetch("schemas/2.0.0/participant_characteristics.schema.json").then((response) => response.json()),
-      fetch("schemas/2.0.0/device.schema.json").then((response) => response.json()),
-      fetch("schemas/2.0.0/device_datasheet.schema.json").then((response) => response.json()),
-      fetch("schemas/2.0.0/dataset.schema.json").then((response) => response.json()),
+      fetch(`schemas/${schemaVersion}/study.schema.json`).then((response) => response.json()),
+      fetch(`schemas/${schemaVersion}/contributor.schema.json`).then((response) => response.json()),
+      fetch(`schemas/${schemaVersion}/participants.schema.json`).then((response) => response.json()),
+      fetch(`schemas/${schemaVersion}/participant_characteristics.schema.json`).then((response) => response.json()),
+      fetch(`schemas/${schemaVersion}/device.schema.json`).then((response) => response.json()),
+      fetch(`schemas/${schemaVersion}/device_datasheet.schema.json`).then((response) => response.json()),
+      fetch(`schemas/${schemaVersion}/dataset.schema.json`).then((response) => response.json()),
     ]);
 
     applySchemaHelp(studySchema, {
@@ -789,12 +956,12 @@ function applyDatasheetSchemaHelp(schema) {
 function applyDatasetSchemaHelp(schema) {
   const properties = schema?.properties || {};
   const crossref = properties.dataset_crossref?.properties || {};
+  const datasetFile = properties.dataset_file?.items?.properties || {};
+  const preprocessing = datasetFile.dataset_file_preprocessing?.properties || {};
+  const datetime = datasetFile.dataset_file_datetime?.properties || properties.dataset_datetime?.properties || {};
   applySchemaHelp(schema, {
     "dataset-id": "dataset_internal_id",
-    "device-location": "dataset_device_location",
-    "sampling-interval": "dataset_sampling_interval",
     "dataset-timezone": "dataset_timezone",
-    "instructions": "dataset_instructions",
   });
 
   const locationItemType = properties.dataset_location?.items
@@ -803,17 +970,53 @@ function applyDatasetSchemaHelp(schema) {
   const fieldHelp = {
     studyId: schemaHelpTitle(crossref.dataset_crossref_study_id, "Internal ID for study"),
     participantId: schemaHelpTitle(crossref.dataset_crossref_participant_id, "Internal ID for participant"),
-    deviceId: schemaHelpTitle(crossref.dataset_crossref_device_id, "Internal ID for device"),
+    deviceId: schemaHelpTitle(datasetFile.dataset_file_crossref_device_id || crossref.dataset_crossref_device_id, "Internal ID for device"),
+    deviceLocation: schemaHelpTitle(datasetFile.dataset_file_device_location || properties.dataset_device_location, "Device location for this file group"),
+    deviceLocationType: schemaHelpTitle(datasetFile.dataset_file_device_location_type, "Controlled device location category for this file group"),
+    temporalResolution: schemaHelpTitle(datasetFile.dataset_file_temporal_resolution || properties.dataset_sampling_interval, "Temporal resolution for this file group"),
+    instructions: schemaHelpTitle(datasetFile.dataset_file_instructions || properties.dataset_instructions, "Collection instructions for this file group"),
     latitude: `Latitude of data collection. Type: ${locationItemType}.`,
     longitude: `Longitude of data collection. Type: ${locationItemType}.`,
   };
+
+  const fileGroupHelp = [
+    [fields.fileFormat, schemaHelpTitle(datasetFile.dataset_file_format, "File format")],
+    [fields.encoding, schemaHelpTitle(datasetFile.dataset_file_encoding, "File text encoding")],
+    [fields.headerRow, schemaHelpTitle(datasetFile.dataset_file_header_row, "Optional header row")],
+    [fields.fileTimezone, schemaHelpTitle(datasetFile.dataset_file_timezone, "Timezone of data")],
+    [fields.auxiliary, schemaHelpTitle(datasetFile.dataset_file_auxiliary, "Indicator whether this is an auxiliary file")],
+    [fields.fileRole, schemaHelpTitle(datasetFile.dataset_file_role, "Role of this file group in the dataset")],
+    [fields.fileModality, schemaHelpTitle(datasetFile.dataset_file_modality, "Controlled modalities contained in this file group")],
+    [fields.fileModalityOther, schemaHelpTitle(datasetFile.dataset_file_modality_other, "Description of an other modality")],
+    [fields.fileModalityOtherType, schemaHelpTitle(datasetFile.dataset_file_modality_other_type, "Whether an other modality is sensor or non-device")],
+    [fields.dataState, schemaHelpTitle(datasetFile.dataset_file_data_state, "State of the data in this file group")],
+    [fields.preprocessingBol, schemaHelpTitle(preprocessing.dataset_file_preprocessing_bol, "Indicator whether preprocessing was applied")],
+    [fields.preprocessingDesc, schemaHelpTitle(preprocessing.dataset_file_preprocessing_desc, "Description of preprocessing")],
+    [fields.datetimeDate, schemaHelpTitle(datetime.dataset_file_datetime_date || datetime.dataset_datetime_date, "Name of the date or datetime column")],
+    [fields.datetimeDateformat, schemaHelpTitle(datetime.dataset_file_datetime_dateformat || datetime.dataset_datetime_dateformat, "Formatting of the date or datetime column")],
+    [fields.datetimeTime, schemaHelpTitle(datetime.dataset_file_datetime_time || datetime.dataset_datetime_time, "Name of the separate time column")],
+    [fields.datetimeTimeformat, schemaHelpTitle(datetime.dataset_file_datetime_timeformat || datetime.dataset_datetime_timeformat, "Formatting of the separate time column")],
+  ];
+
+  const localHelp = [
+    [fields.datetimeSource, "Choose whether this file group has date/time columns or only a known collection date/time."],
+    [fields.collectionDatetime, "Collection date/time value to use when the file has no date/time column."],
+  ];
 
   [
     [fields.studyId, fieldHelp.studyId],
     [fields.participantId, fieldHelp.participantId],
     [fields.deviceId, fieldHelp.deviceId],
+    [fields.deviceLocation, fieldHelp.deviceLocation],
+    [fields.deviceLocationType, fieldHelp.deviceLocationType],
+    [fields.temporalResolutionType, fieldHelp.temporalResolution],
+    [fields.samplingInterval, fieldHelp.temporalResolution],
+    [fields.temporalResolutionUnit, fieldHelp.temporalResolution],
+    [fields.instructions, fieldHelp.instructions],
     [fields.latitude, fieldHelp.latitude],
     [fields.longitude, fieldHelp.longitude],
+    ...fileGroupHelp,
+    ...localHelp,
   ].forEach(([element, helpText]) => {
     const label = element?.closest("label");
     if (!label) return;
@@ -1193,7 +1396,14 @@ function renderStudyGroups() {
     const datasetsHelp = schemaHelpTitle(help.study_group_datasets, "Dataset internal IDs linked to this study group");
     const missingDatasetIds = group.datasets.filter((datasetId) => !datasetIds.includes(datasetId));
     const selectedDatasetCount = group.datasets.length;
-    const availableDatasetIds = datasetIds.filter((datasetId) => !group.datasets.includes(datasetId));
+    const datasetIdsAssignedToOtherGroups = new Set(
+      state.studyGroups.flatMap((otherGroup, otherIndex) => (
+        otherIndex === index ? [] : normalizeStringArray(otherGroup.datasets)
+      )),
+    );
+    const availableDatasetIds = datasetIds.filter((datasetId) => (
+      !group.datasets.includes(datasetId) && !datasetIdsAssignedToOtherGroups.has(datasetId)
+    ));
     const datasetOptions = availableDatasetIds.map((datasetId) => `
       <option value="${escapeHtml(datasetId)}">${escapeHtml(datasetId)}</option>
     `).join("");
@@ -1258,7 +1468,10 @@ function renderStudyGroups() {
     });
     row.querySelector("[data-add-dataset]")?.addEventListener("change", (event) => {
       const datasetId = event.target.value;
-      if (!datasetId || group.datasets.includes(datasetId)) {
+      const assignedToAnotherGroup = state.studyGroups.some((otherGroup, otherIndex) => (
+        otherIndex !== index && normalizeStringArray(otherGroup.datasets).includes(datasetId)
+      ));
+      if (!datasetId || group.datasets.includes(datasetId) || assignedToAnotherGroup) {
         event.target.value = "";
         return;
       }
@@ -1465,14 +1678,23 @@ function characteristicsFromJson(text) {
     throw new Error("Expected participant characteristics as an array, or an object with participant_characteristics.");
   }
 
-  assertResourceRows(rows, RESOURCE_KEYS.characteristics, "participant characteristics metadata");
+  assertCharacteristicRows(rows);
   return rows.map(characteristicFromSchema);
 }
 
 function characteristicsFromTable(text) {
   const rows = parseTableText(text);
-  assertResourceRows(rows, RESOURCE_KEYS.characteristics, "participant characteristics metadata");
+  assertCharacteristicRows(rows);
   return rows.map(characteristicFromSchema);
+}
+
+function assertCharacteristicRows(rows) {
+  assertResourceRows(rows, RESOURCE_KEYS.characteristics, "participant characteristics metadata");
+  const nameKeys = ["participant_characteristic_name"];
+  if (!rows.some((row) => nameKeys.some((key) => Object.prototype.hasOwnProperty.call(row || {}, key)
+    && String(row[key] ?? "").trim()))) {
+    throw new Error("The selected file contains participant rows but no participant_characteristic_name values. Choose participant_characteristics.csv or a corresponding characteristics JSON file.");
+  }
 }
 
 function characteristicFromSchema(row) {
@@ -1737,19 +1959,57 @@ function datasheetsFromTable(text) {
 }
 
 function datasheetFromSchema(row) {
+  const rawModalities = row.datasheet_sensor_modality ?? row.sensor_modality ?? [];
   return {
     id: row.datasheet_id || row.id || "",
     version: row.datasheet_version || row.version || "",
     manufacturer: row.datasheet_manufacturer || row.manufacturer || "",
     type: row.datasheet_type || row.type || "",
+    modalities: Array.isArray(rawModalities) ? rawModalities : rawModalities ? [rawModalities] : [],
+    modalityOther: row.datasheet_sensor_modality_other || "",
     model: row.datasheet_model || row.model || "",
     calibrationInterval: row.datasheet_calibration_interval ?? row.calibration_interval ?? "",
+    calibrationMethod: row.datasheet_calibration_method || "",
+    calibrationAccuracy: row.datasheet_calibration_accuracy || "",
+    calibrationNotes: row.datasheet_calibration_notes || "",
+    calibrationParametersText: calibrationParametersToText(row.datasheet_calibration_parameters),
     spectralSensitivityText: spectralSensitivityToText(row.datasheet_calibration_spectral_sensitivity || row.spectral_sensitivity || ""),
     linearity: row.datasheet_calibration_linearity || row.linearity || "",
     directionalResponse: row.datasheet_calibration_directional_response || row.directional_response || "",
     range: row.datasheet_calibration_range || row.calibration_range || row.range || "",
     channelsText: channelsToText(row.datasheet_channel || row.channels || ""),
   };
+}
+
+function calibrationParametersToText(value) {
+  if (!Array.isArray(value)) return "";
+  return value
+    .map((entry) => [entry?.parameter_name, entry?.parameter_value, entry?.parameter_unit, entry?.parameter_description]
+      .map((part) => part ?? "")
+      .join(" | "))
+    .filter(Boolean)
+    .join("\n");
+}
+
+function parseCalibrationParameters(text) {
+  const rows = String(text || "")
+    .split(/\r?\n|;/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [name, rawValue, unit, description] = line.split("|").map((part) => part.trim());
+      let value = rawValue;
+      if (rawValue !== "" && Number.isFinite(Number(rawValue))) value = Number(rawValue);
+      if (rawValue === "true") value = true;
+      if (rawValue === "false") value = false;
+      return {
+        parameter_name: name,
+        parameter_value: value,
+        parameter_unit: unit || null,
+        parameter_description: description || null,
+      };
+    });
+  return rows.length ? rows : null;
 }
 
 function spectralSensitivityToText(value) {
@@ -1824,6 +2084,7 @@ async function importDatasetFile(file) {
     const rows = datasetRowsFromJson(await file.text());
 
     fields.schemaVersion.value = rows.find((row) => row?.schema_version)?.schema_version || fields.schemaVersion.value || "2.0.0";
+    loadSchemaHelp(fields.schemaVersion.value);
     state.datasets = rows.map(datasetRecordFromSchema);
     state.activeDatasetIndex = 0;
     state.activeGroupIndex = 0;
@@ -1863,6 +2124,7 @@ function populateDatasetFromSchema(dataset) {
   state.activeDatasetIndex = 0;
   state.activeGroupIndex = 0;
   fields.schemaVersion.value = dataset.schema_version || fields.schemaVersion.value || "2.0.0";
+  loadSchemaHelp(fields.schemaVersion.value);
   syncControlsFromActiveDataset();
   updatePreview();
 }
@@ -1870,9 +2132,12 @@ function populateDatasetFromSchema(dataset) {
 function datasetRecordFromSchema(dataset) {
   const record = createDatasetRecord();
   record.datasetId = dataset.dataset_internal_id || "";
-  record.instructions = dataset.dataset_instructions || "";
   record.studyId = dataset.dataset_crossref?.dataset_crossref_study_id || "";
+  record.participantAssociated = typeof dataset.dataset_participant_associated === "boolean"
+    ? dataset.dataset_participant_associated
+    : Boolean(dataset.dataset_crossref?.dataset_crossref_participant_id);
   record.participantId = dataset.dataset_crossref?.dataset_crossref_participant_id || "";
+  record.instructions = dataset.dataset_instructions || "";
   record.deviceId = dataset.dataset_crossref?.dataset_crossref_device_id || "";
   record.deviceLocation = dataset.dataset_device_location || "";
   record.samplingInterval = dataset.dataset_sampling_interval ?? "";
@@ -1889,13 +2154,23 @@ function datasetRecordFromSchema(dataset) {
     ? datasetFiles.map((fileGroup, index) => fileGroupFromSchema(fileGroup, terms, `File group ${index + 1}`))
     : [createFileGroup()];
 
-  const datetimeTarget = record.fileGroups.find((group) => !group.auxiliary) || record.fileGroups[0];
-  const datasetDatetime = dataset.dataset_datetime || {};
-  datetimeTarget.datetimeSource = "column";
-  datetimeTarget.datetimeDate = datasetDatetime.dataset_datetime_date || "";
-  datetimeTarget.datetimeDateformat = datasetDatetime.dataset_datetime_dateformat || "";
-  datetimeTarget.datetimeTime = datasetDatetime.dataset_datetime_time || "";
-  datetimeTarget.datetimeTimeformat = datasetDatetime.dataset_datetime_timeformat || "";
+  if (!String(dataset.schema_version || "2.0.0").startsWith("3.")) {
+    const legacyGroup = record.fileGroups.find((group) => !group.auxiliary) || record.fileGroups[0];
+    legacyGroup.deviceId = record.deviceId;
+    legacyGroup.deviceLocation = record.deviceLocation;
+    legacyGroup.samplingInterval = record.samplingInterval;
+    legacyGroup.instructions = record.instructions;
+  }
+
+  const datasetDatetime = dataset.dataset_datetime;
+  if (datasetDatetime && typeof datasetDatetime === "object") {
+    const datetimeTarget = record.fileGroups.find((group) => !group.auxiliary) || record.fileGroups[0];
+    datetimeTarget.datetimeSource = "column";
+    datetimeTarget.datetimeDate = datasetDatetime.dataset_datetime_date || "";
+    datetimeTarget.datetimeDateformat = datasetDatetime.dataset_datetime_dateformat || "";
+    datetimeTarget.datetimeTime = datasetDatetime.dataset_datetime_time || "";
+    datetimeTarget.datetimeTimeformat = datasetDatetime.dataset_datetime_timeformat || "";
+  }
 
   return record;
 }
@@ -1917,6 +2192,25 @@ function normalizeDatasetTerms(terms) {
 
 function fileGroupFromSchema(fileGroup, datasetTerms, fallbackName) {
   const group = createFileGroup(fallbackName);
+  group.modalities = Array.isArray(fileGroup.dataset_file_modality) ? fileGroup.dataset_file_modality : [];
+  group.modalityOther = fileGroup.dataset_file_modality_other || "";
+  group.modalityOtherType = fileGroup.dataset_file_modality_other_type || "";
+  const instrument = fileGroup.dataset_file_instrument || {};
+  group.instrumentType = instrument.instrument_type || "";
+  group.instrumentName = instrument.instrument_name || "";
+  group.collectionMethod = instrument.collection_method || "";
+  group.softwareName = instrument.software_name || "";
+  group.collectionMethodOther = instrument.collection_method_other || "";
+  group.recordedBy = instrument.recorded_by || "";
+  group.recordedByOther = instrument.recorded_by_other || "";
+  group.deviceId = fileGroup.dataset_file_crossref_device_id || "";
+  group.deviceLocation = fileGroup.dataset_file_device_location || "";
+  group.deviceLocationType = fileGroup.dataset_file_device_location_type || "";
+  const temporalResolution = fileGroup.dataset_file_temporal_resolution;
+  group.temporalResolutionType = temporalResolution?.resolution_type || "fixed_interval";
+  group.samplingInterval = temporalResolution?.value ?? fileGroup.dataset_file_sampling_interval ?? "";
+  group.temporalResolutionUnit = temporalResolution?.unit || "";
+  group.instructions = fileGroup.dataset_file_instructions || "";
   group.files = Array.isArray(fileGroup.dataset_file_names)
     ? fileGroup.dataset_file_names.map((name) => pathBasename(name))
     : [];
@@ -1926,7 +2220,13 @@ function fileGroupFromSchema(fileGroup, datasetTerms, fallbackName) {
   group.fileFormat = fileGroup.dataset_file_format || "";
   group.encoding = Array.isArray(fileGroup.dataset_file_encoding) ? fileGroup.dataset_file_encoding[0] || "" : "";
   group.fileTimezone = fileGroup.dataset_file_timezone || "";
+  const fileDatetime = fileGroup.dataset_file_datetime;
+  if (fileDatetime && typeof fileDatetime === "object") {
+    GlcDatetimeMetadata.applyFileDatetimeToGroup(group, fileDatetime);
+  }
   group.auxiliary = typeof fileGroup.dataset_file_auxiliary === "boolean" ? fileGroup.dataset_file_auxiliary : "";
+  group.role = fileGroup.dataset_file_role || "";
+  group.dataState = fileGroup.dataset_file_data_state || "";
   group.headerRow = fileGroup.dataset_file_header_row ?? "";
   group.preprocessingBol = typeof fileGroup.dataset_file_preprocessing?.dataset_file_preprocessing_bol === "boolean"
     ? fileGroup.dataset_file_preprocessing.dataset_file_preprocessing_bol
@@ -1936,7 +2236,7 @@ function fileGroupFromSchema(fileGroup, datasetTerms, fallbackName) {
     : "";
   group.terms = mergeTermsWithVariables(datasetTerms, fileGroup.dataset_file_variables);
   group.variableState = variableStateFromSchema(fileGroup.dataset_file_variables, fileGroup.primary_variables);
-  group.name = group.auxiliary === true ? "Auxiliary file group" : "Primary file group";
+  group.name = group.role === "supporting" || group.auxiliary === true ? "Supporting file group" : "Primary file group";
   return group;
 }
 
@@ -1965,6 +2265,8 @@ function variableStateFromSchema(variables, primaryVariables) {
       label: variable.dataset_file_variables_labels || column,
       unit: variable.dataset_file_variables_units || "",
       calibration: variable.dataset_file_variables_calibration || "",
+      type: variable.dataset_file_variables_type || "",
+      factorLevelsText: formatFactorLevels(variable.dataset_file_variables_factor_levels),
       term,
       variableName: variable.dataset_file_variables_term?.variable_name || column,
     };
@@ -2292,6 +2594,8 @@ function deviceSensorRowsToText(rows) {
 
 function renderDatasheets() {
   datasheetsList.innerHTML = "";
+  const schema3 = String(fields.schemaVersion.value || "2.0.0").startsWith("3.");
+  const modalityOptions = ["light", "accelerometer", "temperature", "other"];
   state.datasheets.forEach((datasheet, index) => {
     const card = document.createElement("div");
     card.className = "participant-card";
@@ -2302,6 +2606,8 @@ function renderDatasheets() {
     const versionHelp = schemaHelpTitle(help.datasheet_version, "Version label for this datasheet");
     const manufacturerHelp = schemaHelpTitle(help.datasheet_manufacturer, "Manufacturer of the sensor or device");
     const typeHelp = schemaHelpTitle(help.datasheet_type, "Type of sensor or device");
+    const modalityHelp = schemaHelpTitle(help.datasheet_sensor_modality, "Select every modality measured or represented by this device or sensor");
+    const modalityOtherHelp = schemaHelpTitle(help.datasheet_sensor_modality_other, "Name modalities that are not available in the controlled list");
     const modelHelp = schemaHelpTitle(help.datasheet_model, "Model of the sensor or device");
     const intervalHelp = schemaHelpTitle(help.datasheet_calibration_interval, "Required device calibration interval in days");
     const spectralHelpText = `${schemaHelpTitle(help.datasheet_calibration_spectral_sensitivity, "Spectral sensitivity calibration values")} Use one wavelength,relative pair per line.`;
@@ -2310,6 +2616,13 @@ function renderDatasheets() {
     const linearityHelp = schemaHelpTitle(help.datasheet_calibration_linearity, "Linearity calibration information");
     const directionalHelp = schemaHelpTitle(help.datasheet_calibration_directional_response, "Directional response calibration information");
     const rangeHelp = schemaHelpTitle(help.datasheet_calibration_range, "Response range information");
+    const parametersHelp = schemaHelpTitle(help.datasheet_calibration_parameters, "Additional calibration or specification parameters for any modality");
+    const selectedModalities = normalizeStringArray(datasheet.modalities);
+    const includesLight = selectedModalities.includes("light");
+    const includesOther = selectedModalities.includes("other");
+    const modalityOptionsHtml = modalityOptions
+      .map((value) => `<option value="${value}"${selectedModalities.includes(value) ? " selected" : ""}>${value}</option>`)
+      .join("");
     const channelsHelp = `${schemaHelpTitle(help.datasheet_channel, "Information on channels")} Add one row per channel.`;
     const channelNrHelp = schemaHelpTitle(channelHelp.datasheet_channel_nr, "Channel number");
     const channelNameHelp = schemaHelpTitle(channelHelp.datasheet_channel_name, "Channel name as it appears in exported files");
@@ -2334,13 +2647,20 @@ function renderDatasheets() {
         <label title="${escapeHtml(typeHelp)}">Type <span class="required">*</span> ${helpMarker(typeHelp)}
           <input data-field="type" value="${escapeHtml(datasheet.type)}" placeholder="Wearable light sensor" title="${escapeHtml(typeHelp)}" />
         </label>
+        ${schema3 ? `<label title="${escapeHtml(modalityHelp)}">Sensor modalities <span class="required">*</span> ${helpMarker(modalityHelp)}
+          <select data-field="modalities" multiple size="7" title="${escapeHtml(modalityHelp)}">${modalityOptionsHtml}</select>
+          <span class="field-help">Select every applicable modality.</span>
+        </label>
+        <label title="${escapeHtml(modalityOtherHelp)}"${includesOther ? "" : " hidden"}>Other modality <span class="required">*</span> ${helpMarker(modalityOtherHelp)}
+          <input data-field="modalityOther" value="${escapeHtml(datasheet.modalityOther)}" placeholder="Example: humidity" title="${escapeHtml(modalityOtherHelp)}" />
+        </label>` : ""}
         <label title="${escapeHtml(modelHelp)}">Model <span class="required">*</span> ${helpMarker(modelHelp)}
           <input data-field="model" value="${escapeHtml(datasheet.model)}" placeholder="LT-100" title="${escapeHtml(modelHelp)}" />
         </label>
         <label title="${escapeHtml(intervalHelp)}">Calibration interval, days <span class="required">*</span> ${helpMarker(intervalHelp)}
           <input data-field="calibrationInterval" type="number" min="0" value="${escapeHtml(datasheet.calibrationInterval)}" placeholder="365" title="${escapeHtml(intervalHelp)}" />
         </label>
-        <div class="wide nested-editor" title="${escapeHtml(spectralHelpText)}">
+        <div class="wide nested-editor" title="${escapeHtml(spectralHelpText)}"${schema3 && !includesLight ? " hidden" : ""}>
           <div class="nested-editor-heading">
             <span>Spectral sensitivity <span class="required">*</span> ${helpMarker(spectralHelpText)}</span>
             <button type="button" class="secondary-button small-button add-spectral-row">Add wavelength row</button>
@@ -2353,15 +2673,19 @@ function renderDatasheets() {
           <div class="datasheet-spectral-list"></div>
           <span class="field-help">Add one row for each wavelength and its relative sensitivity value.</span>
         </div>
-        <label title="${escapeHtml(linearityHelp)}">Linearity <span class="required">*</span> ${helpMarker(linearityHelp)}
+        <label title="${escapeHtml(linearityHelp)}"${schema3 && !includesLight ? " hidden" : ""}>Linearity <span class="required">*</span> ${helpMarker(linearityHelp)}
           <input data-field="linearity" value="${escapeHtml(datasheet.linearity)}" placeholder="Example: +/-2%" title="${escapeHtml(linearityHelp)}" />
         </label>
-        <label title="${escapeHtml(directionalHelp)}">Directional response <span class="required">*</span> ${helpMarker(directionalHelp)}
+        <label title="${escapeHtml(directionalHelp)}"${schema3 && !includesLight ? " hidden" : ""}>Directional response <span class="required">*</span> ${helpMarker(directionalHelp)}
           <input data-field="directionalResponse" value="${escapeHtml(datasheet.directionalResponse)}" placeholder="Example: cosine corrected" title="${escapeHtml(directionalHelp)}" />
         </label>
-        <label title="${escapeHtml(rangeHelp)}">Calibration range <span class="required">*</span> ${helpMarker(rangeHelp)}
+        <label title="${escapeHtml(rangeHelp)}"${schema3 && !includesLight ? " hidden" : ""}>Calibration range <span class="required">*</span> ${helpMarker(rangeHelp)}
           <input data-field="range" value="${escapeHtml(datasheet.range)}" placeholder="Example: 0-100000 lux" title="${escapeHtml(rangeHelp)}" />
         </label>
+        ${schema3 ? `<label class="wide" title="${escapeHtml(parametersHelp)}">Additional calibration parameters ${helpMarker(parametersHelp)}
+          <textarea data-field="calibrationParametersText" placeholder="accuracy | 0.2 | degrees C | Manufacturer specification">${escapeHtml(datasheet.calibrationParametersText)}</textarea>
+          <span class="field-help">One parameter per line: name | value | unit | description.</span>
+        </label>` : ""}
         <div class="wide nested-editor" title="${escapeHtml(channelsHelp)}">
           <div class="nested-editor-heading">
             <span>Channels ${helpMarker(channelsHelp)}</span>
@@ -2389,6 +2713,14 @@ function renderDatasheets() {
         updatePreview();
       });
     });
+    const modalitySelect = card.querySelector('select[data-field="modalities"]');
+    if (modalitySelect) {
+      modalitySelect.addEventListener("change", () => {
+        datasheet.modalities = Array.from(modalitySelect.selectedOptions, (option) => option.value);
+        renderDatasheets();
+        updatePreview();
+      });
+    }
     card.querySelector("button").addEventListener("click", () => {
       state.datasheets.splice(index, 1);
       renderDatasheets();
@@ -2668,7 +3000,7 @@ async function handleFileSelection(event) {
   group.delimiter = first.delimiter;
   group.headerRow = first.headerRow;
   group.fileFormat = files[0].name.split(".").pop()?.toLowerCase() || "csv";
-  group.name = group.auxiliary === true ? "Auxiliary file group" : "Primary file group";
+  group.name = group.role === "supporting" || group.auxiliary === true ? "Supporting file group" : "Primary file group";
   group.variableState = seedVariableState(group);
   group.datetimeDate = suggestDatetimeColumn(group.columns);
 
@@ -2727,6 +3059,231 @@ function renderFileGroups() {
   });
 }
 
+function reusableTemplateSnapshot(dataset, existingTemplate = null) {
+  const snapshot = cloneJson(dataset);
+  snapshot.datasetId = "";
+  snapshot.participantId = "";
+  snapshot.templateId = "";
+  snapshot.excludedTemplateGroupIds = [];
+  snapshot.fileGroups = (snapshot.fileGroups || []).map((group) => {
+    const reusable = cloneJson(group);
+    reusable.templateGroupId = reusable.templateGroupId || createBuilderId("group");
+    reusable.files = [];
+    if (reusable.datetimeSource === "collection") reusable.collectionDatetime = "";
+    return reusable;
+  });
+  const excluded = new Set(dataset.excludedTemplateGroupIds || []);
+  (existingTemplate?.dataset?.fileGroups || []).forEach((group) => {
+    if (excluded.has(group.templateGroupId)
+      && !snapshot.fileGroups.some((entry) => entry.templateGroupId === group.templateGroupId)) {
+      snapshot.fileGroups.push(cloneJson(group));
+    }
+  });
+  return snapshot;
+}
+
+function propagateTemplateValue(oldValue, newValue, currentValue) {
+  if (valuesEqual(currentValue, oldValue)) return cloneJson(newValue);
+  if (!oldValue || !newValue || !currentValue
+    || Array.isArray(oldValue) || Array.isArray(newValue) || Array.isArray(currentValue)
+    || typeof oldValue !== "object" || typeof newValue !== "object" || typeof currentValue !== "object") {
+    return cloneJson(currentValue);
+  }
+  const result = cloneJson(currentValue);
+  Object.keys(newValue).forEach((key) => {
+    result[key] = key in oldValue
+      ? propagateTemplateValue(oldValue[key], newValue[key], currentValue[key])
+      : cloneJson(newValue[key]);
+  });
+  return result;
+}
+
+function applyTemplateUpdateToDataset(dataset, oldTemplate, newTemplate) {
+  const identity = {
+    datasetId: dataset.datasetId,
+    participantId: dataset.participantId,
+    templateId: dataset.templateId,
+    excludedTemplateGroupIds: [...(dataset.excludedTemplateGroupIds || [])],
+  };
+  const currentGroups = dataset.fileGroups || [];
+  const oldGroups = oldTemplate.dataset.fileGroups || [];
+  const newGroups = newTemplate.dataset.fileGroups || [];
+  const excluded = new Set(identity.excludedTemplateGroupIds);
+  const manualGroups = currentGroups.filter((group) => !group.templateGroupId);
+  const inheritedGroups = newGroups.flatMap((newGroup) => {
+    if (excluded.has(newGroup.templateGroupId)) return [];
+    const current = currentGroups.find((group) => group.templateGroupId === newGroup.templateGroupId);
+    if (!current) return [cloneJson(newGroup)];
+    const previous = oldGroups.find((group) => group.templateGroupId === newGroup.templateGroupId) || {};
+    return [propagateTemplateValue(previous, newGroup, current)];
+  });
+  const withoutGroups = { ...dataset, fileGroups: undefined };
+  const previousDefaults = { ...oldTemplate.dataset, fileGroups: undefined };
+  const newDefaults = { ...newTemplate.dataset, fileGroups: undefined };
+  Object.assign(dataset, propagateTemplateValue(previousDefaults, newDefaults, withoutGroups), identity);
+  dataset.fileGroups = [...inheritedGroups, ...manualGroups];
+}
+
+function saveActiveDatasetAsTemplate() {
+  syncActiveDatasetFromControls();
+  const name = datasetTemplateName.value.trim();
+  if (!name) {
+    datasetTemplateStatus.textContent = "Enter a template name first.";
+    return;
+  }
+  const dataset = activeDataset();
+  const template = {
+    templateId: createBuilderId("template"),
+    name,
+    dataset: reusableTemplateSnapshot(dataset),
+  };
+  state.datasetTemplates.push(template);
+  state.activeTemplateEditorId = template.templateId;
+  dataset.templateId = template.templateId;
+  dataset.fileGroups.forEach((group, index) => {
+    group.templateGroupId = template.dataset.fileGroups[index].templateGroupId;
+  });
+  datasetTemplateName.value = "";
+  renderTemplateEditorControls();
+  renderDatasetTemplateTools();
+  updatePreview();
+}
+
+function createLinkedDatasetFromTemplate() {
+  syncActiveDatasetFromControls();
+  const template = state.datasetTemplates.find((entry) => entry.templateId === datasetTemplateSelect.value);
+  if (!template) {
+    datasetTemplateStatus.textContent = "Select a template first.";
+    return;
+  }
+  const selectedParticipants = Array.from(datasetTemplateParticipants.querySelectorAll("input[type='checkbox']:checked"))
+    .map((input) => input.value);
+  const participants = selectedParticipants.length ? selectedParticipants : [""];
+  participants.forEach((participantId) => {
+    const dataset = cloneJson(template.dataset);
+    dataset.datasetId = "";
+    dataset.participantId = participantId;
+    dataset.participantAssociated = participantId ? true : dataset.participantAssociated;
+    dataset.templateId = template.templateId;
+    dataset.excludedTemplateGroupIds = [];
+    dataset.studyId = dataset.studyId || getStudyId();
+    state.datasets.push(dataset);
+  });
+  state.activeDatasetIndex = state.datasets.length - 1;
+  state.activeGroupIndex = 0;
+  syncControlsFromActiveDataset();
+  renderDatasetTemplateTools();
+  updatePreview();
+}
+
+function updateSelectedDatasetTemplate() {
+  syncActiveDatasetFromControls();
+  const template = state.datasetTemplates.find((entry) => entry.templateId === state.activeTemplateEditorId);
+  const dataset = activeDataset();
+  if (!template || state.activeStep !== "templates") {
+    datasetTemplateSaveStatus.textContent = "Select a saved template at the top of this page first.";
+    return;
+  }
+  const linkedCount = state.datasets.filter((entry) => entry.templateId === template.templateId).length;
+  if (!window.confirm(`Update ${template.name} and propagate inherited changes to ${linkedCount} linked dataset(s)? Local overrides and exclusions will be preserved.`)) {
+    return;
+  }
+  dataset.fileGroups.forEach((group) => {
+    group.templateGroupId = group.templateGroupId || createBuilderId("group");
+  });
+  const previous = cloneJson(template);
+  const updated = {
+    ...template,
+    dataset: reusableTemplateSnapshot(dataset, template),
+  };
+  state.datasetTemplates[state.datasetTemplates.indexOf(template)] = updated;
+  state.datasets.filter((entry) => entry.templateId === updated.templateId)
+    .forEach((entry) => applyTemplateUpdateToDataset(entry, previous, updated));
+  state.templateDraft = cloneJson(updated.dataset);
+  state.templateDraft.templateId = updated.templateId;
+  state.fileGroups = state.templateDraft.fileGroups;
+  syncControlsFromActiveDataset();
+  placeDatasetEditor("templates");
+  renderTemplateEditorControls();
+  renderDatasetTemplateTools();
+  datasetTemplateSaveStatus.textContent = `Updated ${updated.name} and propagated inherited changes to ${linkedCount} linked dataset(s).`;
+  updatePreview();
+}
+
+function detachActiveDatasetFromTemplate() {
+  syncActiveDatasetFromControls();
+  const dataset = activeDataset();
+  if (!dataset?.templateId) {
+    datasetTemplateStatus.textContent = "The active dataset is not linked to a template.";
+    return;
+  }
+  dataset.templateId = "";
+  dataset.excludedTemplateGroupIds = [];
+  dataset.fileGroups.forEach((group) => { group.templateGroupId = ""; });
+  renderDatasetTemplateTools();
+  renderDatasetRecords();
+}
+
+function restoreExcludedTemplateGroup() {
+  const dataset = activeDataset();
+  const template = state.datasetTemplates.find((entry) => entry.templateId === dataset?.templateId);
+  const groupId = excludedTemplateGroupSelect.value;
+  const group = template?.dataset.fileGroups.find((entry) => entry.templateGroupId === groupId);
+  if (!group) return;
+  dataset.excludedTemplateGroupIds = (dataset.excludedTemplateGroupIds || []).filter((id) => id !== groupId);
+  dataset.fileGroups.push(cloneJson(group));
+  state.fileGroups = dataset.fileGroups;
+  state.activeGroupIndex = dataset.fileGroups.length - 1;
+  syncControlsFromActiveDataset();
+  renderDatasetTemplateTools();
+  updatePreview();
+}
+
+function renderDatasetTemplateTools() {
+  const schema3 = String(fields.schemaVersion.value || "2.0.0").startsWith("3.");
+  document.querySelector("#dataset-template-tools").hidden = !schema3 || state.activeStep !== "datasets";
+  document.querySelector("#dataset-template-save-tools").hidden = !schema3 || state.activeStep !== "templates";
+  const selected = datasetTemplateSelect.value;
+  const selectedParticipants = new Set(Array.from(datasetTemplateParticipants.querySelectorAll("input[type='checkbox']:checked"))
+    .map((input) => input.value));
+  datasetTemplateSelect.innerHTML = '<option value="">Select template</option>'
+    + state.datasetTemplates.map((template) => `<option value="${escapeHtml(template.templateId)}">${escapeHtml(template.name)}</option>`).join("");
+  datasetTemplateSelect.value = state.datasetTemplates.some((template) => template.templateId === selected)
+    ? selected
+    : activeDataset()?.templateId || "";
+  datasetTemplateParticipants.innerHTML = getParticipantIds()
+    .map((participantId) => `
+      <label>
+        <input type="checkbox" value="${escapeHtml(participantId)}"${selectedParticipants.has(participantId) ? " checked" : ""} />
+        <span>${escapeHtml(participantId)}</span>
+      </label>
+    `)
+    .join("");
+  const dataset = activeDataset();
+  const templateReady = (dataset?.fileGroups || []).some((group) => (group.modalities || []).length > 0
+    && group.role
+    && group.dataState
+    && (group.columns || []).length > 0);
+  document.querySelector("#save-dataset-template").disabled = !templateReady;
+  document.querySelector("#update-dataset-template").disabled = !templateReady || !state.activeTemplateEditorId || state.activeStep !== "templates";
+  document.querySelector("#detach-dataset-template").hidden = state.activeStep === "templates";
+  datasetTemplateSaveStatus.textContent = templateReady
+    ? state.activeTemplateEditorId && state.activeStep === "templates"
+      ? "Edit the selected template, then update it or save it as a separate new template."
+      : "The current template structure is ready to save."
+    : "Before saving, configure at least one file group with a modality, file role, data state, and detected variables.";
+  const template = state.datasetTemplates.find((entry) => entry.templateId === dataset?.templateId);
+  const excluded = new Set(dataset?.excludedTemplateGroupIds || []);
+  const excludedGroups = (template?.dataset.fileGroups || []).filter((group) => excluded.has(group.templateGroupId));
+  excludedTemplateGroupSelect.innerHTML = excludedGroups.map((group) => `<option value="${escapeHtml(group.templateGroupId)}">${escapeHtml(group.name)}</option>`).join("");
+  document.querySelector("#restore-template-group-tools").hidden = excludedGroups.length === 0;
+  datasetTemplateStatus.textContent = dataset?.templateId
+    ? `Active dataset is linked to ${template?.name || "an unavailable template"}. Local changes are preserved as overrides.`
+    : state.datasetTemplates.length
+      ? `${state.datasetTemplates.length} template(s) available. Select one to create a linked dataset.`
+      : "No templates created yet. Configure the current dataset below, then save its structure at the end of this page.";
+}
+
 function renderDatasetRecords() {
   if (!datasetRecordsList) {
     return;
@@ -2740,6 +3297,7 @@ function renderDatasetRecords() {
     const labelParts = [
       dataset.datasetId || "Untitled dataset",
       dataset.participantId ? `participant ${dataset.participantId}` : "",
+      dataset.templateId ? "linked template" : "",
     ].filter(Boolean);
 
     const button = document.createElement("button");
@@ -2768,6 +3326,7 @@ function renderDatasetRecords() {
     wrapper.appendChild(removeButton);
     datasetRecordsList.appendChild(wrapper);
   });
+  renderDatasetTemplateTools();
 }
 
 function addDatasetRecord() {
@@ -2812,7 +3371,14 @@ function removeFileGroup(index) {
   if (state.fileGroups.length === 1) {
     return;
   }
-  state.fileGroups.splice(index, 1);
+  const [removed] = state.fileGroups.splice(index, 1);
+  const dataset = activeDataset();
+  if (dataset?.templateId && removed?.templateGroupId) {
+    dataset.excludedTemplateGroupIds = Array.from(new Set([
+      ...(dataset.excludedTemplateGroupIds || []),
+      removed.templateGroupId,
+    ]));
+  }
   if (state.activeGroupIndex >= state.fileGroups.length) {
     state.activeGroupIndex = state.fileGroups.length - 1;
   } else if (index < state.activeGroupIndex) {
@@ -2822,6 +3388,7 @@ function removeFileGroup(index) {
   renderTerms();
   renderFileGroups();
   renderVariables();
+  renderDatasetTemplateTools();
   updatePreview();
 }
 
@@ -2830,13 +3397,38 @@ function syncControlsFromActiveGroup() {
   if (!group) {
     return;
   }
+  setPendingSelectValue(fields.deviceId, group.deviceId || "");
+  fields.fileModality.querySelectorAll("input[name='file-modality']").forEach((input) => {
+    input.checked = (group.modalities || []).includes(input.value);
+  });
+  fields.fileModalityOther.value = group.modalityOther || "";
+  fields.fileModalityOtherType.value = group.modalityOtherType || "";
+  fields.fileInstrumentType.value = group.instrumentType || "";
+  fields.fileInstrumentName.value = group.instrumentName || "";
+  fields.fileCollectionMethod.value = group.collectionMethod || "";
+  fields.fileSoftwareName.value = group.softwareName || "";
+  fields.fileCollectionMethodOther.value = group.collectionMethodOther || "";
+  fields.fileRecordedBy.value = group.recordedBy || "";
+  fields.fileRecordedByOther.value = group.recordedByOther || "";
+  fields.deviceLocation.value = group.deviceLocation || "";
+  fields.deviceLocationType.value = group.deviceLocationType || "";
+  syncDeviceLocationTypeControls();
+  syncFileModalityControls();
+  fields.temporalResolutionType.value = group.temporalResolutionType || "fixed_interval";
+  fields.samplingInterval.value = group.samplingInterval ?? "";
+  fields.temporalResolutionUnit.value = group.temporalResolutionUnit || "";
+  syncTemporalResolutionControls();
+  fields.instructions.value = group.instructions || "";
   fields.fileFormat.value = group.fileFormat;
   fields.encoding.value = group.encoding;
   fields.headerRow.value = group.headerRow === "" ? "" : String(group.headerRow);
   fields.fileTimezone.value = group.fileTimezone;
   fields.auxiliary.value = group.auxiliary === "" ? "" : String(Boolean(group.auxiliary));
+  fields.fileRole.value = group.role || "";
+  fields.dataState.value = group.dataState || "";
   fields.preprocessingBol.value = group.preprocessingBol === "" ? "" : String(Boolean(group.preprocessingBol));
   fields.preprocessingDesc.value = group.preprocessingDesc || "";
+  syncFileRoleDataStateControls();
   fields.datetimeSource.value = group.datetimeSource || "column";
   fields.collectionDatetime.value = group.collectionDatetime || "";
   fields.datetimeDateformat.value = group.datetimeDateformat || "";
@@ -2858,12 +3450,36 @@ function syncActiveGroupFromControls() {
   if (!group) {
     return;
   }
+  group.modalities = selectedFileModalities();
+  group.modalityOther = fields.fileModalityOther.value.trim();
+  group.modalityOtherType = fields.fileModalityOtherType.value || "";
+  group.instrumentType = fields.fileInstrumentType.value || "";
+  group.instrumentName = fields.fileInstrumentName.value.trim();
+  group.collectionMethod = fields.fileCollectionMethod.value || "";
+  group.softwareName = fields.fileSoftwareName.value.trim();
+  group.collectionMethodOther = fields.fileCollectionMethodOther.value.trim();
+  group.recordedBy = fields.fileRecordedBy.value || "";
+  group.recordedByOther = fields.fileRecordedByOther.value.trim();
+  group.deviceId = fields.deviceId.value || "";
+  group.deviceLocation = fields.deviceLocation.value.trim();
+  group.deviceLocationType = fields.deviceLocationType.value || "";
+  group.temporalResolutionType = fields.temporalResolutionType.value || "";
+  group.samplingInterval = fields.samplingInterval.value;
+  group.temporalResolutionUnit = fields.temporalResolutionUnit.value.trim();
+  group.instructions = fields.instructions.value.trim();
   group.fileFormat = fields.fileFormat.value || "";
   group.encoding = fields.encoding.value || "";
   group.headerRow = fields.headerRow.value === "" ? "" : Number(fields.headerRow.value);
   group.fileTimezone = fields.fileTimezone.value || "";
   group.auxiliary = fields.auxiliary.value === "" ? "" : fields.auxiliary.value === "true";
-  group.preprocessingBol = fields.preprocessingBol.value === "" ? "" : fields.preprocessingBol.value === "true";
+  group.role = fields.fileRole.value || "";
+  group.dataState = fields.dataState.value || "";
+  group.name = group.role === "supporting" || group.auxiliary === true
+    ? "Supporting file group"
+    : "Primary file group";
+  group.preprocessingBol = (fields.schemaVersion.value || "2.0.0") === "3.0.0"
+    ? group.dataState === "" ? "" : group.dataState === "processed"
+    : fields.preprocessingBol.value === "" ? "" : fields.preprocessingBol.value === "true";
   group.preprocessingDesc = fields.preprocessingDesc.value || "";
   group.datetimeSource = fields.datetimeSource.value || "column";
   group.collectionDatetime = fields.collectionDatetime.value || "";
@@ -2872,6 +3488,145 @@ function syncActiveGroupFromControls() {
   group.datetimeTime = fields.datetimeTime.value || "";
   group.datetimeTimeformat = fields.datetimeTimeformat.value || "";
   group.variableState = collectCurrentVariableState(group);
+}
+
+function syncDeviceLocationTypeControls() {
+}
+
+function fileGroupUsesSensor(group = activeGroup()) {
+  return (group?.modalities || []).some((modality) => FILE_SENSOR_MODALITIES.has(modality))
+    || ((group?.modalities || []).includes("other") && group?.modalityOtherType === "sensor");
+}
+
+function fileGroupRequiresDevice(group = activeGroup()) {
+  return fileGroupUsesSensor(group) || (group?.modalities || []).includes("wear_log");
+}
+
+function fileGroupAllowsDevice(group = activeGroup()) {
+  return fileGroupRequiresDevice(group)
+    || (group?.modalities || []).some((modality) => ["questionnaire", "diary"].includes(modality));
+}
+
+function selectedFileModalities() {
+  return Array.from(fields.fileModality.querySelectorAll("input[name='file-modality']:checked"))
+    .map((input) => input.value);
+}
+
+function syncFileModalityControls() {
+  const schema3 = (fields.schemaVersion.value || "2.0.0") === "3.0.0";
+  const modalities = selectedFileModalities();
+  const includesOther = modalities.includes("other");
+  const includesSensor = modalities.some((modality) => FILE_SENSOR_MODALITIES.has(modality));
+  const includesNonDevice = modalities.some((modality) => FILE_NON_DEVICE_MODALITIES.has(modality));
+  const selectedInstrumentType = modalities.find((modality) => FILE_NON_DEVICE_MODALITIES.has(modality)) || "";
+  const otherType = includesOther ? fields.fileModalityOtherType.value : "";
+  const effectiveSensor = includesSensor || otherType === "sensor";
+  const effectiveNonDevice = includesNonDevice || otherType === "non_device";
+  fields.fileModality.querySelectorAll("input[name='file-modality']").forEach((input) => {
+    if (!schema3 || input.checked || (effectiveSensor && effectiveNonDevice)) {
+      input.disabled = false;
+    } else if (effectiveSensor) {
+      input.disabled = FILE_NON_DEVICE_MODALITIES.has(input.value);
+    } else if (effectiveNonDevice) {
+      input.disabled = FILE_SENSOR_MODALITIES.has(input.value)
+        || input.value === "other"
+        || (FILE_NON_DEVICE_MODALITIES.has(input.value) && input.value !== selectedInstrumentType);
+    } else {
+      input.disabled = false;
+    }
+  });
+  const sensorTypeOption = fields.fileModalityOtherType.querySelector("option[value='sensor']");
+  const nonDeviceTypeOption = fields.fileModalityOtherType.querySelector("option[value='non_device']");
+  sensorTypeOption.disabled = includesNonDevice && otherType !== "sensor";
+  nonDeviceTypeOption.disabled = includesSensor && otherType !== "non_device";
+  const modalityWarning = document.querySelector("#file-modality-warning");
+  const incompatibleKnownModalities = includesSensor && includesNonDevice;
+  const incompatibleOtherType = (otherType === "sensor" && includesNonDevice)
+    || (otherType === "non_device" && includesSensor);
+  modalityWarning.hidden = !schema3 || (!incompatibleKnownModalities && !incompatibleOtherType);
+  modalityWarning.textContent = incompatibleOtherType
+    ? `The selected other modality type (${otherType === "sensor" ? "sensor" : "non-device"}) conflicts with another selected modality. Correct the type or place the incompatible data in a separate file group.`
+    : incompatibleKnownModalities
+      ? "Sensor and non-device modalities cannot share a file group. Uncheck one category and create a separate file group for it."
+      : "";
+  fields.fileInstrumentType.value = selectedInstrumentType;
+  const group = activeGroup();
+  if (group) group.instrumentType = selectedInstrumentType;
+  document.querySelector("#file-instrument-field").hidden = !schema3 || !selectedInstrumentType;
+  const softwareMethod = fields.fileCollectionMethod.value === "software";
+  const otherMethod = fields.fileCollectionMethod.value === "other";
+  const otherRecorder = fields.fileRecordedBy.value === "other";
+  document.querySelector("#file-software-name-field").hidden = !schema3 || !selectedInstrumentType || !softwareMethod;
+  document.querySelector("#file-collection-method-other-field").hidden = !schema3 || !selectedInstrumentType || !otherMethod;
+  document.querySelector("#file-recorded-by-other-field").hidden = !schema3 || !selectedInstrumentType || !otherRecorder;
+  document.querySelector("#file-modality-field").hidden = !schema3;
+  document.querySelector("#file-modality-other-field").hidden = !schema3 || !includesOther;
+  document.querySelector("#file-modality-other-type-field").hidden = !schema3 || !includesOther;
+  const controlGroup = {
+    modalities,
+    modalityOtherType: fields.fileModalityOtherType.value,
+  };
+  const allowsDevice = fileGroupAllowsDevice(controlGroup);
+  const requiresDevice = fileGroupRequiresDevice(controlGroup);
+  [
+    "#file-device-id-field",
+    "#file-device-location-field",
+    "#file-device-location-type-field",
+  ].forEach((selector) => {
+    document.querySelector(selector).hidden = schema3 && !allowsDevice;
+  });
+  [
+    [fields.deviceId, "#file-device-id-required"],
+    [fields.deviceLocation, "#file-device-location-required"],
+    [fields.deviceLocationType, "#file-device-location-type-required"],
+  ].forEach(([field, requiredSelector]) => {
+    field.required = !schema3 || requiresDevice;
+    document.querySelector(requiredSelector).hidden = schema3 && !requiresDevice;
+  });
+  if (schema3 && !allowsDevice) {
+    fields.deviceId.value = "";
+    fields.deviceLocation.value = "";
+    fields.deviceLocationType.value = "";
+    const active = activeGroup();
+    if (active) {
+      active.deviceId = "";
+      active.deviceLocation = "";
+      active.deviceLocationType = "";
+    }
+  }
+}
+
+function syncFileRoleDataStateControls() {
+  const schema3 = (fields.schemaVersion.value || "2.0.0") === "3.0.0";
+  const descriptionField = document.querySelector("#preprocessing-description-field");
+  document.querySelector("#legacy-auxiliary-field").hidden = schema3;
+  document.querySelector("#legacy-preprocessing-status-field").hidden = schema3;
+  document.querySelector("#file-role-field").hidden = !schema3;
+  document.querySelector("#data-state-field").hidden = !schema3;
+  if (schema3) {
+    const processed = fields.dataState.value === "processed";
+    fields.preprocessingBol.value = fields.dataState.value === "" ? "" : String(processed);
+    descriptionField.hidden = !processed;
+    fields.preprocessingDesc.disabled = !processed;
+    fields.preprocessingDesc.placeholder = "Describe preprocessing and provenance";
+    if (fields.dataState.value === "raw") {
+      fields.preprocessingDesc.value = "";
+      const group = activeGroup();
+      if (group) group.preprocessingDesc = "";
+    }
+  } else {
+    descriptionField.hidden = false;
+    fields.preprocessingDesc.disabled = false;
+    fields.preprocessingDesc.placeholder = "Required if preprocessing was applied";
+  }
+}
+
+function syncTemporalResolutionControls() {
+  const isFixedInterval = fields.temporalResolutionType?.value === "fixed_interval";
+  fields.samplingInterval.disabled = !isFixedInterval;
+  fields.temporalResolutionUnit.disabled = !isFixedInterval;
+  fields.samplingInterval.required = isFixedInterval;
+  fields.temporalResolutionUnit.required = isFixedInterval;
 }
 
 function renderTerms() {
@@ -2984,15 +3739,17 @@ function renderVariables() {
     .filter((entry) => entry.term)
     .map((entry) => `<option value="${escapeHtml(entry.term)}">${escapeHtml(entry.term)}</option>`)
     .join("");
+  const schema3 = (fields.schemaVersion.value || "2.0.0") === "3.0.0";
 
   const header = document.createElement("div");
-  header.className = "variable-row variable-header";
+  header.className = `variable-row variable-header${schema3 ? " schema-3-variable-row" : ""}`;
   header.innerHTML = `
-    <span>Primary</span>
+    <span title="A principal or default variable used when analysing this file group.">Primary variable</span>
     <span>File column</span>
     <span>Label</span>
     <span>Units</span>
     <span>Calibration</span>
+    ${schema3 ? "<span>Type</span><span>Factor levels</span>" : ""}
     <span>Semantic term</span>
     <span>Other name</span>
   `;
@@ -3001,22 +3758,40 @@ function renderVariables() {
   group.columns.forEach((column) => {
     const saved = group.variableState[column] || {};
     const term = saved.term || guessTerm(column);
+    const variableType = saved.type || "";
     const row = document.createElement("div");
-    row.className = "variable-row";
+    row.className = `variable-row${schema3 ? " schema-3-variable-row" : ""}`;
     row.innerHTML = `
-      <input type="checkbox" class="primary-check" data-column="${escapeHtml(column)}" aria-label="Select ${escapeHtml(column)} as a primary variable" ${saved.primary ? "checked" : ""} ${group.auxiliary ? "disabled" : ""} />
+      <input type="checkbox" class="primary-check" data-column="${escapeHtml(column)}" aria-label="Select ${escapeHtml(column)} as a primary variable" ${saved.primary ? "checked" : ""} ${!schema3 && group.auxiliary ? "disabled" : ""} />
       <strong>${escapeHtml(column)}</strong>
       <input type="text" class="label-input" data-column="${escapeHtml(column)}" value="${escapeHtml(saved.label || column)}" aria-label="Label for ${escapeHtml(column)}" />
       <input type="text" class="unit-input" data-column="${escapeHtml(column)}" value="${escapeHtml(saved.unit || guessUnit(column))}" aria-label="Unit for ${escapeHtml(column)}" />
       <input type="text" class="calibration-input" data-column="${escapeHtml(column)}" value="${escapeHtml(saved.calibration || "N/A")}" aria-label="Calibration for ${escapeHtml(column)}" />
+      ${schema3 ? `
+        <select class="type-select" data-column="${escapeHtml(column)}" aria-label="Type for ${escapeHtml(column)}">
+          <option value="">Select type</option>
+          <option value="string">String</option>
+          <option value="boolean">Boolean</option>
+          <option value="numeric">Numeric</option>
+          <option value="integer">Integer</option>
+          <option value="factor">Factor</option>
+        </select>
+        <textarea class="factor-levels-input" data-column="${escapeHtml(column)}" aria-label="Factor levels for ${escapeHtml(column)}" placeholder="value | label | optional description" ${variableType === "factor" ? "" : "disabled"}>${escapeHtml(saved.factorLevelsText || "")}</textarea>
+      ` : ""}
       <select class="term-select" data-column="${escapeHtml(column)}" aria-label="Semantic term for ${escapeHtml(column)}">${termOptions}</select>
       <input type="text" class="other-name-input" data-column="${escapeHtml(column)}" value="${escapeHtml(saved.variableName || column)}" aria-label="Other variable name for ${escapeHtml(column)}" />
     `;
     variablesTable.appendChild(row);
     row.querySelector(".term-select").value = group.terms.some((entry) => entry.term === term) ? term : "other";
+    if (schema3) {
+      row.querySelector(".type-select").value = variableType;
+      row.querySelector(".type-select").addEventListener("change", (event) => {
+        row.querySelector(".factor-levels-input").disabled = event.target.value !== "factor";
+      });
+    }
   });
 
-  variablesTable.querySelectorAll("input, select").forEach((input) => {
+  variablesTable.querySelectorAll("input, select, textarea").forEach((input) => {
     input.addEventListener("input", () => {
       group.variableState = collectCurrentVariableState(group);
       updatePreview();
@@ -3037,6 +3812,8 @@ function seedVariableState(group) {
       label: column,
       unit: guessUnit(column),
       calibration: "N/A",
+      type: "",
+      factorLevelsText: "",
       term: guessTerm(column),
       variableName: column,
     };
@@ -3056,6 +3833,8 @@ function collectCurrentVariableState(group) {
       label: row.querySelector(".label-input")?.value || "",
       unit: row.querySelector(".unit-input")?.value || "",
       calibration: row.querySelector(".calibration-input")?.value || "",
+      type: row.querySelector(".type-select")?.value || current[column]?.type || "",
+      factorLevelsText: row.querySelector(".factor-levels-input")?.value || "",
       term: row.querySelector(".term-select")?.value || "other",
       variableName: row.querySelector(".other-name-input")?.value || column,
     };
@@ -3101,7 +3880,25 @@ function getPrimaryVariables(group) {
     .filter((column) => group.columns.includes(column));
 }
 
-function getVariableMetadata(group) {
+function formatFactorLevels(levels) {
+  if (!Array.isArray(levels)) return "";
+  return levels.map((level) => [level.value, level.label, level.description]
+    .filter((value, index) => index < 2 || value)
+    .join(" | ")).join("\n");
+}
+
+function parseFactorLevels(text) {
+  return String(text || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line) => {
+    const [value = "", label = "", ...descriptionParts] = line.split("|").map((part) => part.trim());
+    return {
+      value,
+      label,
+      description: descriptionParts.join(" | ") || null,
+    };
+  });
+}
+
+function getVariableMetadata(group, schemaVersion) {
   return group.columns.map((column) => {
     const saved = group.variableState[column] || {};
     const term = saved.term || "other";
@@ -3111,17 +3908,24 @@ function getVariableMetadata(group) {
       termObject.variable_name = saved.variableName || column;
     }
 
-    return {
+    const metadata = {
       dataset_file_variables_name: column,
       dataset_file_variables_labels: saved.label || column,
       dataset_file_variables_units: saved.unit || "Unknown",
       dataset_file_variables_calibration: saved.calibration || null,
       dataset_file_variables_term: termObject,
     };
+    if (schemaVersion === "3.0.0") {
+      metadata.dataset_file_variables_type = saved.type || "";
+      if (saved.type === "factor") {
+        metadata.dataset_file_variables_factor_levels = parseFactorLevels(saved.factorLevelsText);
+      }
+    }
+    return metadata;
   });
 }
 
-function buildDatasetFile(group) {
+function buildDatasetFile(group, schemaVersion) {
   const preprocessingDesc = group.preprocessingDesc
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -3132,17 +3936,78 @@ function buildDatasetFile(group) {
     dataset_file_format: group.fileFormat || "",
     dataset_file_encoding: [group.encoding || ""],
     dataset_file_timezone: group.fileTimezone || "",
-    dataset_file_auxiliary: group.auxiliary === "" ? null : Boolean(group.auxiliary),
     dataset_file_header_row: group.headerRow === "" ? null : Number(group.headerRow),
     dataset_file_preprocessing: {
-      dataset_file_preprocessing_bol: group.preprocessingBol === "" ? null : Boolean(group.preprocessingBol),
-      dataset_file_preprocessing_desc: group.preprocessingBol === true ? preprocessingDesc : null,
+      dataset_file_preprocessing_bol: schemaVersion === "3.0.0"
+        ? group.dataState === "processed"
+        : group.preprocessingBol === "" ? null : Boolean(group.preprocessingBol),
+      dataset_file_preprocessing_desc: schemaVersion === "3.0.0"
+        ? group.dataState === "processed" ? preprocessingDesc : null
+        : group.preprocessingBol === true ? preprocessingDesc : null,
     },
-    dataset_file_variables: getVariableMetadata(group),
+    dataset_file_variables: getVariableMetadata(group, schemaVersion),
   };
 
-  if (group.auxiliary !== true) {
-    datasetFile.primary_variables = getPrimaryVariables(group);
+  if (schemaVersion === "3.0.0") {
+    datasetFile.dataset_file_modality = [...(group.modalities || [])];
+    if ((group.modalities || []).includes("other")) {
+      datasetFile.dataset_file_modality_other = group.modalityOther || "";
+      datasetFile.dataset_file_modality_other_type = group.modalityOtherType || "";
+    }
+    const instrumentType = (group.modalities || []).find((modality) => FILE_NON_DEVICE_MODALITIES.has(modality));
+    if (instrumentType) {
+      datasetFile.dataset_file_instrument = {
+        instrument_type: instrumentType,
+        instrument_name: group.instrumentName || "",
+        collection_method: group.collectionMethod || "",
+        recorded_by: group.recordedBy || "",
+      };
+      if (group.collectionMethod === "software") {
+        datasetFile.dataset_file_instrument.software_name = group.softwareName || "";
+      }
+      if (group.collectionMethod === "other") {
+        datasetFile.dataset_file_instrument.collection_method_other = group.collectionMethodOther || "";
+      }
+      if (group.recordedBy === "other") {
+        datasetFile.dataset_file_instrument.recorded_by_other = group.recordedByOther || "";
+      }
+    }
+    datasetFile.dataset_file_role = group.role || "";
+    datasetFile.dataset_file_data_state = group.dataState || "";
+    const hasDeviceMetadata = hasAnyValue([
+      group.deviceId,
+      group.deviceLocation,
+      group.deviceLocationType,
+    ]);
+    if (fileGroupRequiresDevice(group) || (fileGroupAllowsDevice(group) && hasDeviceMetadata)) {
+      datasetFile.dataset_file_crossref_device_id = group.deviceId || "";
+      datasetFile.dataset_file_device_location = group.deviceLocation || "";
+      datasetFile.dataset_file_device_location_type = group.deviceLocationType || "";
+    }
+    datasetFile.dataset_file_temporal_resolution = group.temporalResolutionType === "event_based"
+      ? { resolution_type: "event_based" }
+      : {
+          resolution_type: "fixed_interval",
+          value: group.samplingInterval === "" ? null : Number(group.samplingInterval),
+          unit: group.temporalResolutionUnit || "",
+        };
+    datasetFile.dataset_file_instructions = group.instructions || "";
+    datasetFile.dataset_file_datetime = GlcDatetimeMetadata.buildFileDatetimeFromGroup(
+      group,
+      suggestDatetimeColumn(group.columns),
+    );
+  }
+
+  if (schemaVersion !== "3.0.0") {
+    datasetFile.dataset_file_auxiliary = group.auxiliary === "" ? null : Boolean(group.auxiliary);
+  }
+
+  const primaryVariables = getPrimaryVariables(group);
+  if (
+    (schemaVersion === "3.0.0" && (group.role === "primary" || primaryVariables.length > 0))
+    || (schemaVersion !== "3.0.0" && group.auxiliary !== true)
+  ) {
+    datasetFile.primary_variables = primaryVariables;
   }
 
   return datasetFile;
@@ -3150,6 +4015,7 @@ function buildDatasetFile(group) {
 
 function buildDatasetRecordDraft(record) {
   const fileGroups = record.fileGroups?.length ? record.fileGroups : [createFileGroup()];
+  const schemaVersion = fields.schemaVersion.value || "2.0.0";
   const datetimeGroup = fileGroups.find((group) => !group.auxiliary) || fileGroups[0];
 
   const datasetDatetime = {
@@ -3165,23 +4031,38 @@ function buildDatasetRecordDraft(record) {
         : null,
   };
 
-  return {
-    schema_version: fields.schemaVersion.value || "2.0.0",
+  const datasetRecord = {
+    schema_version: schemaVersion,
     dataset_internal_id: record.datasetId || "",
-    dataset_instructions: record.instructions || "",
+    ...(schemaVersion === "3.0.0" ? {
+      dataset_participant_associated: record.participantAssociated !== false,
+    } : {}),
     dataset_crossref: {
       dataset_crossref_study_id: record.studyId || "",
-      dataset_crossref_participant_id: record.participantId || "",
-      dataset_crossref_device_id: record.deviceId || "",
+      dataset_crossref_participant_id: schemaVersion === "3.0.0" && record.participantAssociated === false
+        ? null
+        : record.participantId || "",
     },
-    dataset_device_location: record.deviceLocation || "",
-    dataset_sampling_interval: record.samplingInterval === "" ? null : Number(record.samplingInterval),
-    dataset_datetime: datasetDatetime,
     dataset_timezone: record.datasetTimezone || "",
-    dataset_location: [record.latitude || "", record.longitude || ""],
+    dataset_location: schemaVersion === "3.0.0"
+      ? [
+          record.latitude === "" ? null : Number(record.latitude),
+          record.longitude === "" ? null : Number(record.longitude),
+        ]
+      : [record.latitude || "", record.longitude || ""],
     dataset_variable_terms: getDatasetVariableTerms(fileGroups),
-    dataset_file: fileGroups.map(buildDatasetFile),
+    dataset_file: fileGroups.map((group) => buildDatasetFile(group, schemaVersion)),
   };
+
+  if (schemaVersion !== "3.0.0") {
+    datasetRecord.dataset_instructions = record.instructions || "";
+    datasetRecord.dataset_crossref.dataset_crossref_device_id = record.deviceId || "";
+    datasetRecord.dataset_device_location = record.deviceLocation || "";
+    datasetRecord.dataset_sampling_interval = record.samplingInterval === "" ? null : Number(record.samplingInterval);
+    datasetRecord.dataset_datetime = datasetDatetime;
+  }
+
+  return datasetRecord;
 }
 
 function buildDatasetDraft() {
@@ -3332,25 +4213,54 @@ function buildDevicesDraft({ includeEmpty = false } = {}) {
 
 function buildDatasheetsDraft({ includeEmpty = false } = {}) {
   const datasheets = includeEmpty && state.datasheets.length === 0 ? [createDatasheet()] : state.datasheets;
+  const schemaVersion = fields.schemaVersion.value || "2.0.0";
+  const schema3 = String(schemaVersion).startsWith("3.");
   return datasheets
     .filter((entry) => includeEmpty || entry.id || entry.manufacturer || entry.model)
-    .map((entry) => ({
-      schema_version: fields.schemaVersion.value || "2.0.0",
-      datasheet_id: entry.id,
-      datasheet_version: entry.version || null,
-      datasheet_manufacturer: entry.manufacturer,
-      datasheet_type: entry.type,
-      datasheet_model: entry.model,
-      datasheet_calibration_interval: entry.calibrationInterval === "" ? null : Number(entry.calibrationInterval),
-      datasheet_calibration_spectral_sensitivity: parseSpectralSensitivity(entry.spectralSensitivityText),
-      datasheet_calibration_linearity: entry.linearity,
-      datasheet_calibration_directional_response: entry.directionalResponse,
-      datasheet_calibration_range: entry.range,
-      datasheet_channel: parseChannels(entry.channelsText),
-    }));
+    .map((entry) => {
+      const base = {
+        schema_version: schemaVersion,
+        datasheet_id: entry.id,
+        datasheet_version: entry.version || null,
+        datasheet_manufacturer: entry.manufacturer,
+        datasheet_type: entry.type,
+        datasheet_model: entry.model,
+        datasheet_calibration_interval: entry.calibrationInterval === "" ? null : Number(entry.calibrationInterval),
+        datasheet_channel: parseChannels(entry.channelsText),
+      };
+      if (!schema3) {
+        return {
+          ...base,
+          datasheet_calibration_spectral_sensitivity: parseSpectralSensitivity(entry.spectralSensitivityText),
+          datasheet_calibration_linearity: entry.linearity,
+          datasheet_calibration_directional_response: entry.directionalResponse,
+          datasheet_calibration_range: entry.range,
+        };
+      }
+
+      const modalities = normalizeStringArray(entry.modalities);
+      const result = {
+        ...base,
+        datasheet_sensor_modality: modalities,
+        datasheet_sensor_modality_other: modalities.includes("other") ? entry.modalityOther : null,
+        datasheet_calibration_method: entry.calibrationMethod || null,
+        datasheet_calibration_accuracy: entry.calibrationAccuracy || null,
+        datasheet_calibration_notes: entry.calibrationNotes || null,
+        datasheet_calibration_parameters: parseCalibrationParameters(entry.calibrationParametersText),
+      };
+      if (modalities.includes("light")) {
+        result.datasheet_calibration_spectral_sensitivity = parseSpectralSensitivity(entry.spectralSensitivityText);
+        result.datasheet_calibration_linearity = entry.linearity;
+        result.datasheet_calibration_directional_response = entry.directionalResponse;
+        result.datasheet_calibration_range = entry.range;
+      }
+      return result;
+    });
 }
 
 function buildDataPackage() {
+  const schemaVersion = fields.schemaVersion.value || "2.0.0";
+  const schemaBase = `schemas/${schemaVersion}`;
   const includeCharacteristics = buildCharacteristicsRows().length > 0;
   const resources = [
     {
@@ -3358,7 +4268,7 @@ function buildDataPackage() {
       path: "data/study.json",
       profile: "json-entity-resource.json",
       mediatype: "application/json",
-      jsonSchema: "schemas/2.0.0/study.schema.json",
+      jsonSchema: `${schemaBase}/study.schema.json`,
     },
     {
       name: "participants",
@@ -3366,28 +4276,28 @@ function buildDataPackage() {
       profile: "tabular-data-resource",
       format: "csv",
       mediatype: "text/csv",
-      schema: "schemas/2.0.0/participants.schema.json",
+      schema: `${schemaBase}/participants.schema.json`,
     },
     {
       name: "datasets",
       path: "data/datasets.json",
       profile: "json-entity-resource.json",
       mediatype: "application/json",
-      jsonSchema: "schemas/2.0.0/dataset.schema.json",
+      jsonSchema: `${schemaBase}/dataset.schema.json`,
     },
     {
       name: "devices",
       path: "data/devices.json",
       profile: "json-entity-resource.json",
       mediatype: "application/json",
-      jsonSchema: "schemas/2.0.0/device.schema.json",
+      jsonSchema: `${schemaBase}/device.schema.json`,
     },
     {
       name: "device_datasheets",
       path: "data/device_datasheet.json",
       profile: "json-entity-resource.json",
       mediatype: "application/json",
-      jsonSchema: "schemas/2.0.0/device_datasheet.schema.json",
+      jsonSchema: `${schemaBase}/device_datasheet.schema.json`,
     },
   ];
 
@@ -3398,13 +4308,13 @@ function buildDataPackage() {
       profile: "tabular-data-resource",
       format: "csv",
       mediatype: "text/csv",
-      schema: "schemas/2.0.0/participant_characteristics.schema.json",
+      schema: `${schemaBase}/participant_characteristics.schema.json`,
     });
   }
 
   return {
-    profile: "schemas/2.0.0/gleam-dp-profile.json",
-    schema_version: fields.schemaVersion.value || "2.0.0",
+    profile: `${schemaBase}/gleam-dp-profile.json`,
+    schema_version: schemaVersion,
     name: fields.packageName.value,
     title: fields.packageTitle.value,
     resources,
@@ -3690,6 +4600,100 @@ function hasAnyValue(values) {
   return values.some((value) => !isBlank(value));
 }
 
+function isFiniteNumberValue(value) {
+  return !isBlank(value) && Number.isFinite(Number(value));
+}
+
+function studyHasUserContent() {
+  const studyFieldValues = [
+    fields.studyInternalId.value,
+    fields.studyTitle.value,
+    fields.studyPreregistration.value,
+    fields.studyRegistration.value,
+    fields.studyEthics.value,
+    fields.studyType.value,
+    fields.studyShortDescription.value,
+    fields.studySample.value,
+    fields.studySetting.value,
+    fields.studyGeographicalLocation.value,
+    fields.studyIntervention.value,
+    fields.studyFundingSources.value,
+    fields.studyKeywords.value,
+  ];
+  const hasStudyGroupContent = state.studyGroups.some((group) => hasAnyValue([
+    group.name,
+    group.description,
+    group.size,
+    group.inclusion,
+    group.exclusion,
+    ...normalizeStringArray(group.datasets),
+  ]));
+  const hasContributorContent = state.contributors.some((contributor) => hasAnyValue([
+    contributor.fullName,
+    contributor.roles,
+    contributor.email,
+    contributor.orcid,
+    contributor.institutionName,
+    contributor.institutionCity,
+    contributor.institutionCountry,
+  ]));
+
+  return hasAnyValue(studyFieldValues) || hasStudyGroupContent || hasContributorContent;
+}
+
+function fileGroupHasUserContent(group) {
+  return hasAnyValue([
+    ...(group.files || []).map((file) => file?.name || file),
+    ...(group.columns || []).map((column) => column?.name || column),
+    ...(group.modalities || []),
+    group.modalityOther,
+    group.modalityOtherType,
+    group.instrumentType,
+    group.instrumentName,
+    group.collectionMethod,
+    group.softwareName,
+    group.collectionMethodOther,
+    group.recordedBy,
+    group.recordedByOther,
+    group.deviceId,
+    group.deviceLocation,
+    group.deviceLocationType,
+    group.temporalResolutionType,
+    group.samplingInterval,
+    group.temporalResolutionUnit,
+    group.instructions,
+    group.headerRow,
+    group.fileFormat,
+    group.encoding,
+    group.fileTimezone,
+    group.auxiliary,
+    group.role,
+    group.dataState,
+    group.preprocessingBol,
+    group.preprocessingDesc,
+    group.collectionDatetime,
+    group.datetimeDate,
+    group.datetimeDateformat,
+    group.datetimeTime,
+    group.datetimeTimeformat,
+  ]);
+}
+
+function datasetHasUserContent(dataset) {
+  return hasAnyValue([
+    dataset.datasetId,
+    dataset.studyId,
+    dataset.participantId,
+    dataset.deviceId,
+    dataset.deviceLocation,
+    dataset.samplingInterval,
+    dataset.datasetTimezone,
+    dataset.latitude,
+    dataset.longitude,
+    dataset.instructions,
+  ]) || (dataset.fileGroups || []).some(fileGroupHasUserContent);
+}
+
 function normalizeTimeZoneValue(value) {
   return String(value || "").trim();
 }
@@ -3762,8 +4766,13 @@ function timeZoneIssueMessage(label, value) {
 
 function validateStudyForExport() {
   const issues = [];
+  if (!studyHasUserContent()) {
+    return [validationIssue("Study", "Study resource is missing. Complete the Study page.")];
+  }
+
   const datasetIds = buildDatasetDraft().map((entry) => entry.dataset_internal_id).filter(Boolean);
   const datasetIdSet = new Set(datasetIds);
+  const studyGroupDatasetAssignments = new Map();
   [
     [getStudyId(), "Study internal ID is missing."],
     [fields.studyTitle.value, "Study title is missing."],
@@ -3790,6 +4799,17 @@ function validateStudyForExport() {
         .forEach((datasetId) => {
           issues.push(validationIssue("Study", `Study group ${label}: linked dataset "${datasetId}" does not exist in datasets.json.`));
         });
+      selectedDatasetIds.forEach((datasetId) => {
+        const previousAssignment = studyGroupDatasetAssignments.get(datasetId);
+        if (previousAssignment && previousAssignment.index !== index) {
+          issues.push(validationIssue(
+            "Study",
+            `Dataset "${datasetId}" is assigned to multiple study groups: "${previousAssignment.label}" and "${label}".`,
+          ));
+        } else if (!previousAssignment) {
+          studyGroupDatasetAssignments.set(datasetId, { index, label });
+        }
+      });
     });
   return issues;
 }
@@ -3799,7 +4819,7 @@ function validateParticipantsForExport() {
   const participants = state.participants.filter((entry) => hasAnyValue([entry.id, entry.age, entry.sex, entry.gender]));
 
   if (participants.length === 0) {
-    return [validationIssue("Participants", "At least one participant row is recommended before export.")];
+    return [validationIssue("Participants", "Participants resource is missing. Complete the Participants page.")];
   }
 
   participants.forEach((participant, index) => {
@@ -3828,7 +4848,7 @@ function validateDevicesForExport() {
   ]));
 
   if (devices.length === 0) {
-    return [validationIssue("Devices", "At least one device record is recommended before export.")];
+    return [validationIssue("Devices", "Devices resource is missing. Complete the Devices page.")];
   }
 
   devices.forEach((device, index) => {
@@ -3862,21 +4882,25 @@ function validateDevicesForExport() {
 
 function validateDatasheetsForExport() {
   const issues = [];
+  const schema3 = String(fields.schemaVersion.value || "2.0.0").startsWith("3.");
   const datasheets = state.datasheets.filter((entry) => hasAnyValue([
     entry.id,
     entry.manufacturer,
     entry.type,
+    normalizeStringArray(entry.modalities).join(""),
+    entry.modalityOther,
     entry.model,
     entry.calibrationInterval,
     entry.spectralSensitivityText,
     entry.linearity,
     entry.directionalResponse,
     entry.range,
+    entry.calibrationParametersText,
     entry.channelsText,
   ]));
 
   if (datasheets.length === 0) {
-    return [validationIssue("Datasheets", "At least one datasheet record is recommended before export.")];
+    return [validationIssue("Datasheets", "Device datasheets resource is missing. Complete the Datasheets page.")];
   }
 
   datasheets.forEach((datasheet, index) => {
@@ -3886,25 +4910,50 @@ function validateDatasheetsForExport() {
       [datasheet.manufacturer, "manufacturer"],
       [datasheet.type, "type"],
       [datasheet.model, "model"],
-      [datasheet.calibrationInterval, "calibration interval"],
-      [datasheet.linearity, "linearity"],
-      [datasheet.directionalResponse, "directional response"],
-      [datasheet.range, "calibration range"],
+      ...(!schema3 ? [[datasheet.calibrationInterval, "calibration interval"]] : []),
     ].forEach(([value, fieldName]) => {
       if (isBlank(value)) {
         issues.push(validationIssue("Datasheets", `Datasheet ${label}: ${fieldName} is missing.`));
       }
     });
 
+    const modalities = normalizeStringArray(datasheet.modalities);
+    if (schema3 && modalities.length === 0) {
+      issues.push(validationIssue("Datasheets", `Datasheet ${label}: at least one sensor modality is missing.`));
+    }
+    if (schema3 && modalities.includes("other") && isBlank(datasheet.modalityOther)) {
+      issues.push(validationIssue("Datasheets", `Datasheet ${label}: other modality description is missing.`));
+    }
+    const requiresLightFields = !schema3 || modalities.includes("light");
+    if (requiresLightFields) {
+      [
+        [datasheet.linearity, "linearity"],
+        [datasheet.directionalResponse, "directional response"],
+        [datasheet.range, "calibration range"],
+      ].forEach(([value, fieldName]) => {
+        if (isBlank(value)) {
+          issues.push(validationIssue("Datasheets", `Datasheet ${label}: ${fieldName} is missing.`));
+        }
+      });
+    }
+
     const spectralRows = parseSpectralSensitivity(datasheet.spectralSensitivityText || "");
-    if (spectralRows.length === 0) {
+    if (requiresLightFields && spectralRows.length === 0) {
       issues.push(validationIssue("Datasheets", `Datasheet ${label}: spectral sensitivity rows are missing.`));
     }
-    spectralRows.forEach((row, rowIndex) => {
+    (requiresLightFields ? spectralRows : []).forEach((row, rowIndex) => {
       if (Number.isNaN(row.datasheet_calibration_spectral_sensitivity_wavelength) || Number.isNaN(row.datasheet_calibration_spectral_sensitivity_relative)) {
         issues.push(validationIssue("Datasheets", `Datasheet ${label}, spectral row ${rowIndex + 1}: wavelength and relative sensitivity must be numeric.`));
       }
     });
+
+    if (schema3) {
+      (parseCalibrationParameters(datasheet.calibrationParametersText) || []).forEach((parameter, parameterIndex) => {
+        if (isBlank(parameter.parameter_name) || isBlank(parameter.parameter_value)) {
+          issues.push(validationIssue("Datasheets", `Datasheet ${label}, calibration parameter ${parameterIndex + 1}: name and value are required.`));
+        }
+      });
+    }
 
     const channels = parseChannels(datasheet.channelsText || "");
     if (!channels || channels.length === 0) {
@@ -3931,28 +4980,35 @@ function validateDatasetsForExport() {
   }
 
   const participantIds = new Set(getParticipantIds());
+  const referencedParticipantIds = new Set();
   const deviceIds = new Set(getDeviceIds());
   const studyId = getStudyId();
   const datasetIds = new Set();
+  const schemaVersion = fields.schemaVersion.value || "2.0.0";
 
-  if (state.datasets.length === 0) {
-    return [validationIssue("Datasets", "At least one dataset record is recommended before export.")];
+  const datasetsWithContent = state.datasets.filter(datasetHasUserContent);
+  if (datasetsWithContent.length === 0) {
+    return [validationIssue("Datasets", "Datasets resource is missing. Complete the Datasets page.")];
   }
 
-  state.datasets.forEach((dataset, datasetIndex) => {
+  datasetsWithContent.forEach((dataset, datasetIndex) => {
     const label = dataset.datasetId || `record ${datasetIndex + 1}`;
 
     [
       [dataset.datasetId, "dataset ID"],
       [dataset.studyId, "study ID"],
-      [dataset.participantId, "participant ID"],
-      [dataset.deviceId, "device ID"],
-      [dataset.deviceLocation, "device location"],
-      [dataset.samplingInterval, "sampling interval"],
+      ...(schemaVersion !== "3.0.0" || dataset.participantAssociated !== false
+        ? [[dataset.participantId, "participant ID"]]
+        : []),
       [dataset.datasetTimezone, "dataset timezone"],
       [dataset.latitude, "dataset location latitude"],
       [dataset.longitude, "dataset location longitude"],
-      [dataset.instructions, "dataset instructions"],
+      ...(schemaVersion === "3.0.0" ? [] : [
+        [dataset.deviceId, "device ID"],
+        [dataset.deviceLocation, "device location"],
+        [dataset.samplingInterval, "sampling interval"],
+        [dataset.instructions, "dataset instructions"],
+      ]),
     ].forEach(([value, fieldName]) => {
       if (isBlank(value)) {
         issues.push(validationIssue("Datasets", `Dataset ${label}: ${fieldName} is missing.`));
@@ -3972,10 +5028,22 @@ function validateDatasetsForExport() {
     if (!isBlank(dataset.datasetTimezone) && !isRecognizedTimeZone(dataset.datasetTimezone)) {
       issues.push(validationIssue("Datasets", `Dataset ${label}: ${timeZoneIssueMessage("dataset timezone", dataset.datasetTimezone)}`));
     }
+    if (schemaVersion === "3.0.0" && !isBlank(dataset.latitude) && !isFiniteNumberValue(dataset.latitude)) {
+      issues.push(validationIssue("Datasets", `Dataset ${label}: dataset location latitude must be numeric.`));
+    }
+    if (schemaVersion === "3.0.0" && !isBlank(dataset.longitude) && !isFiniteNumberValue(dataset.longitude)) {
+      issues.push(validationIssue("Datasets", `Dataset ${label}: dataset location longitude must be numeric.`));
+    }
     if (!isBlank(dataset.participantId) && !participantIds.has(dataset.participantId)) {
       issues.push(validationIssue("Datasets", `Dataset ${label}: participant ID does not match any participant row.`));
     }
-    if (!isBlank(dataset.deviceId) && !deviceIds.has(dataset.deviceId)) {
+    if (schemaVersion === "3.0.0" && dataset.participantAssociated === false && !isBlank(dataset.participantId)) {
+      issues.push(validationIssue("Datasets", `Dataset ${label}: participant ID must be empty when no participant is associated.`));
+    }
+    if (!isBlank(dataset.participantId)) {
+      referencedParticipantIds.add(dataset.participantId);
+    }
+    if (schemaVersion !== "3.0.0" && !isBlank(dataset.deviceId) && !deviceIds.has(dataset.deviceId)) {
       issues.push(validationIssue("Datasets", `Dataset ${label}: device ID does not match any device record.`));
     }
 
@@ -3988,10 +5056,23 @@ function validateDatasetsForExport() {
     fileGroups.forEach((group, groupIndex) => {
       const groupLabel = `Dataset ${label}, file group ${groupIndex + 1}`;
       [
+        ...(schemaVersion === "3.0.0" ? [
+          [group.modalities?.length ? group.modalities : "", "file modality"],
+          ...(fileGroupRequiresDevice(group) ? [
+            [group.deviceId, "device ID"],
+            [group.deviceLocation, "device location"],
+            [group.deviceLocationType, "device location type"],
+          ] : []),
+          [group.temporalResolutionType, "temporal resolution type"],
+          [group.instructions, "instructions"],
+        ] : []),
         [group.fileFormat, "file format"],
         [group.encoding, "encoding"],
         [group.fileTimezone, "file timezone"],
-        [group.auxiliary, "auxiliary file status"],
+        ...(schemaVersion === "3.0.0" ? [
+          [group.role, "file role"],
+          [group.dataState, "data state"],
+        ] : [[group.auxiliary, "auxiliary file status"]]),
         [group.datetimeSource, "datetime source"],
         [group.datetimeDateformat, "date/datetime format"],
       ].forEach(([value, fieldName]) => {
@@ -3999,6 +5080,72 @@ function validateDatasetsForExport() {
           issues.push(validationIssue("Datasets", `${groupLabel}: ${fieldName} is missing.`));
         }
       });
+
+      if (schemaVersion === "3.0.0" && !isBlank(group.deviceId) && !deviceIds.has(group.deviceId)) {
+        issues.push(validationIssue("Datasets", `${groupLabel}: device ID does not match any device record.`));
+      }
+      if (schemaVersion === "3.0.0") {
+        const modalities = group.modalities || [];
+        if (dataset.participantAssociated === false
+          && ["body_worn", "participant_proximal"].includes(group.deviceLocationType)) {
+          issues.push(validationIssue("Datasets", `${groupLabel}: body-worn and near-participant device locations require a participant-associated dataset.`));
+        }
+        if (modalities.some((modality) => FILE_SENSOR_MODALITIES.has(modality))
+          && modalities.some((modality) => FILE_NON_DEVICE_MODALITIES.has(modality))) {
+          issues.push(validationIssue("Datasets", `${groupLabel}: sensor and non-device modalities must be placed in separate file groups.`));
+        }
+        if (modalities.includes("other")) {
+          if (isBlank(group.modalityOther)) {
+            issues.push(validationIssue("Datasets", `${groupLabel}: other modality description is missing.`));
+          }
+          if (isBlank(group.modalityOtherType)) {
+            issues.push(validationIssue("Datasets", `${groupLabel}: other modality type is missing.`));
+          }
+          if (group.modalityOtherType === "sensor"
+            && modalities.some((modality) => FILE_NON_DEVICE_MODALITIES.has(modality))) {
+            issues.push(validationIssue("Datasets", `${groupLabel}: sensor-type other cannot be combined with non-device modalities.`));
+          }
+          if (group.modalityOtherType === "non_device"
+            && modalities.some((modality) => FILE_SENSOR_MODALITIES.has(modality))) {
+            issues.push(validationIssue("Datasets", `${groupLabel}: non-device other cannot be combined with sensor modalities.`));
+          }
+        }
+        const instrumentType = modalities.find((modality) => FILE_NON_DEVICE_MODALITIES.has(modality));
+        if (instrumentType) {
+          if (isBlank(group.instrumentName)) {
+            issues.push(validationIssue("Datasets", `${groupLabel}: instrument name is missing.`));
+          }
+          if (isBlank(group.collectionMethod)) {
+            issues.push(validationIssue("Datasets", `${groupLabel}: collection method is missing.`));
+          }
+          if (group.collectionMethod === "software" && isBlank(group.softwareName)) {
+            issues.push(validationIssue("Datasets", `${groupLabel}: software name is missing.`));
+          }
+          if (group.collectionMethod === "other" && isBlank(group.collectionMethodOther)) {
+            issues.push(validationIssue("Datasets", `${groupLabel}: other collection method description is missing.`));
+          }
+          if (isBlank(group.recordedBy)) {
+            issues.push(validationIssue("Datasets", `${groupLabel}: recorded by is missing.`));
+          }
+          if (group.recordedBy === "other" && isBlank(group.recordedByOther)) {
+            issues.push(validationIssue("Datasets", `${groupLabel}: other recorder description is missing.`));
+          }
+        }
+        const optionalDeviceGroup = modalities.some((modality) => ["questionnaire", "diary"].includes(modality));
+        const suppliedDeviceValues = [group.deviceId, group.deviceLocation, group.deviceLocationType];
+        if (optionalDeviceGroup && suppliedDeviceValues.some((value) => !isBlank(value))
+          && suppliedDeviceValues.some(isBlank)) {
+          issues.push(validationIssue("Datasets", `${groupLabel}: optional device metadata must include device ID, location, and location type as a complete set.`));
+        }
+      }
+      if (schemaVersion === "3.0.0" && group.temporalResolutionType === "fixed_interval") {
+        if (isBlank(group.samplingInterval) || !isFiniteNumberValue(group.samplingInterval) || Number(group.samplingInterval) <= 0) {
+          issues.push(validationIssue("Datasets", `${groupLabel}: temporal resolution value must be a positive number.`));
+        }
+        if (isBlank(group.temporalResolutionUnit)) {
+          issues.push(validationIssue("Datasets", `${groupLabel}: temporal resolution unit is missing.`));
+        }
+      }
 
       if (!group.files || group.files.length === 0) {
         issues.push(validationIssue("Datasets", `${groupLabel}: no data file has been selected or listed.`));
@@ -4009,6 +5156,29 @@ function validateDatasetsForExport() {
       if (!group.columns || group.columns.length === 0) {
         issues.push(validationIssue("Datasets", `${groupLabel}: no variables/columns are listed.`));
       }
+      if (schemaVersion === "3.0.0") {
+        (group.columns || []).forEach((column) => {
+          const variable = group.variableState?.[column] || {};
+          if (isBlank(variable.type)) {
+            issues.push(validationIssue("Datasets", `${groupLabel}, variable ${column}: type is missing.`));
+            return;
+          }
+          if (variable.type === "factor") {
+            const levels = parseFactorLevels(variable.factorLevelsText);
+            if (levels.length === 0) {
+              issues.push(validationIssue("Datasets", `${groupLabel}, variable ${column}: at least one factor level is required.`));
+              return;
+            }
+            if (levels.some((level) => isBlank(level.value) || isBlank(level.label))) {
+              issues.push(validationIssue("Datasets", `${groupLabel}, variable ${column}: every factor level requires a value and label.`));
+            }
+            const values = levels.map((level) => level.value);
+            if (new Set(values).size !== values.length) {
+              issues.push(validationIssue("Datasets", `${groupLabel}, variable ${column}: factor level values must be unique.`));
+            }
+          }
+        });
+      }
       if (group.datetimeSource === "column" && isBlank(group.datetimeDate)) {
         issues.push(validationIssue("Datasets", `${groupLabel}: date or datetime column is missing.`));
       }
@@ -4018,14 +5188,33 @@ function validateDatasetsForExport() {
       if (group.datetimeTime && isBlank(group.datetimeTimeformat)) {
         issues.push(validationIssue("Datasets", `${groupLabel}: time format is missing for the separate time column.`));
       }
-      if (group.preprocessingBol === true && isBlank(group.preprocessingDesc)) {
+      if (schemaVersion === "3.0.0" && group.dataState === "processed" && isBlank(group.preprocessingDesc)) {
+        issues.push(validationIssue("Datasets", `${groupLabel}: preprocessing/provenance description is missing for processed data.`));
+      }
+      if (schemaVersion !== "3.0.0" && group.preprocessingBol === true && isBlank(group.preprocessingDesc)) {
         issues.push(validationIssue("Datasets", `${groupLabel}: preprocessing description is missing.`));
       }
-      if (group.auxiliary !== true && getPrimaryVariables(group).length === 0) {
+      if (schemaVersion === "3.0.0" && group.role === "primary" && getPrimaryVariables(group).length === 0) {
+        issues.push(validationIssue("Datasets", `${groupLabel}: select at least one primary variable. A primary variable is a principal or default variable used to analyse this file group.`));
+      }
+      if (schemaVersion !== "3.0.0" && group.auxiliary !== true && getPrimaryVariables(group).length === 0) {
         issues.push(validationIssue("Datasets", `${groupLabel}: at least one primary variable should be selected.`));
       }
     });
   });
+
+  const unreferencedParticipantIds = Array.from(participantIds)
+    .filter((participantId) => !referencedParticipantIds.has(participantId))
+    .sort();
+  if (unreferencedParticipantIds.length > 0) {
+    const participantLabel = unreferencedParticipantIds.length === 1
+      ? "participant ID is"
+      : "participant IDs are";
+    issues.push(validationIssue(
+      "Participants",
+      `${unreferencedParticipantIds.length} declared ${participantLabel} not referenced by any dataset: ${unreferencedParticipantIds.join(", ")}.`,
+    ));
+  }
 
   return issues;
 }
@@ -4123,6 +5312,22 @@ async function importPackageFolder(files) {
       missing.push("datasets.json");
     }
 
+    if (found.builderProject) {
+      const project = JSON.parse(await found.builderProject.text());
+      if (project.builder_project_version !== "1.0.0"
+        || !Array.isArray(project.dataset_templates)
+        || !Array.isArray(project.datasets)) {
+        throw new Error("The builder project file has an unsupported or invalid structure.");
+      }
+      state.datasetTemplates = project.dataset_templates;
+      state.datasets = project.datasets;
+      state.activeDatasetIndex = 0;
+      state.activeGroupIndex = 0;
+      imported.push("glc-builder-project.json");
+    } else {
+      state.datasetTemplates = [];
+    }
+
     if (imported.length === 0) {
       throw new Error("No recognized metadata files were found. Expected files at the folder root or inside data/.");
     }
@@ -4179,6 +5384,7 @@ function clearPackageFolderImport() {
   state.datasheets = [createDatasheet()];
   state.datasheetImportedFiles = [];
   state.datasets = [createDatasetRecord()];
+  state.datasetTemplates = [];
   state.activeDatasetIndex = 0;
   state.activeGroupIndex = 0;
   state.fileGroups = state.datasets[0].fileGroups;
@@ -4215,6 +5421,7 @@ function populatePackageFieldsFromDataPackage(datapackage) {
   }
 
   fields.schemaVersion.value = datapackage.schema_version || fields.schemaVersion.value || "2.0.0";
+  loadSchemaHelp(fields.schemaVersion.value);
   fields.packageName.value = datapackage.name || "";
   fields.packageTitle.value = datapackage.title || "";
 }
@@ -4232,6 +5439,7 @@ function findPackageMetadataFiles(files) {
     devices: findPackageFile(files, ["devices.json"]),
     datasheets: findPackageFile(files, ["device_datasheet.json", "sensor_datasheet.json"]),
     datasets: findPackageFile(files, ["datasets.json"]),
+    builderProject: findPackageFile(files, ["glc-builder-project.json"]),
   };
 }
 
@@ -4294,7 +5502,18 @@ async function downloadPackageZip() {
   }
 }
 
+function buildBuilderProject() {
+  if (state.activeStep === "datasets") syncActiveDatasetFromControls();
+  return {
+    builder_project_version: "1.0.0",
+    schema_version: fields.schemaVersion.value || "2.0.0",
+    dataset_templates: cloneJson(state.datasetTemplates),
+    datasets: cloneJson(state.datasets),
+  };
+}
+
 async function buildPackageZipFiles() {
+  const schemaVersion = fields.schemaVersion.value || "2.0.0";
   const files = [
     {
       path: "datapackage.json",
@@ -4321,11 +5540,16 @@ async function buildPackageZipFiles() {
       text: JSON.stringify(buildDatasetDraft(), null, 2),
     },
     {
+      path: "glc-builder-project.json",
+      text: JSON.stringify(buildBuilderProject(), null, 2),
+    },
+    {
       path: "README.txt",
       text: [
         "GLC metadata package generated by the browser metadata builder.",
         "",
         "This zip contains generated metadata files and the schema bundle referenced by datapackage.json.",
+        "The glc-builder-project.json file preserves builder templates and editing links and is not scientific metadata.",
         "It does not include the original data files selected in the dataset file assistant.",
         "Before running the full validator, add referenced data files under the paths declared in data/datasets.json.",
       ].join("\n"),
@@ -4340,12 +5564,12 @@ async function buildPackageZipFiles() {
   }
 
   const schemaFiles = await Promise.all(ZIP_SCHEMA_FILES.map(async (filename) => {
-    const response = await fetch(`schemas/2.0.0/${filename}`);
+    const response = await fetch(`schemas/${schemaVersion}/${filename}`);
     if (!response.ok) {
       throw new Error(`Could not load schema file ${filename}`);
     }
     return {
-      path: `schemas/2.0.0/${filename}`,
+      path: `schemas/${schemaVersion}/${filename}`,
       text: await response.text(),
     };
   }));
@@ -4470,7 +5694,8 @@ function downloadBlob(filename, blob) {
 }
 
 async function downloadSchema(filename) {
-  const response = await fetch(`schemas/2.0.0/${filename}`);
+  const schemaVersion = fields.schemaVersion.value || "2.0.0";
+  const response = await fetch(`schemas/${schemaVersion}/${filename}`);
   const text = await response.text();
   downloadText(filename, text, "application/json");
 }

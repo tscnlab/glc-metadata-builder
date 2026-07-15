@@ -1,9 +1,9 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/<your-org-or-username>/<your-repo>/main/schemas/2.0.0/device_datasheet.generalized-draft.schema.json",
-  "version": "2.0.0-draft",
-  "title": "Draft Generalized Device/Sensor Datasheet Schema",
-  "description": "Draft proposal for a generalized device/sensor datasheet schema. This file is for discussion only and is not currently used by the builder or validator.",
+  "$id": "https://raw.githubusercontent.com/<your-org-or-username>/<your-repo>/main/schemas/3.0.0/device_datasheet.schema.json",
+  "version": "3.0.0",
+  "title": "Generalized Device/Sensor Datasheet Schema",
+  "description": "Generalized metadata schema for device and sensor datasheets.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -32,24 +32,26 @@
       "description": "Human-readable type of the device or sensor"
     },
     "datasheet_sensor_modality": {
-      "type": "string",
-      "enum": [
-        "light",
-        "accelerometer",
-        "temperature",
-        "activity",
-        "sleep",
-        "questionnaire",
-        "other"
-      ],
-      "description": "Controlled modality/category used to apply modality-specific validation rules"
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "light",
+          "accelerometer",
+          "temperature",
+          "other"
+        ]
+      },
+      "description": "One or more controlled modalities/categories used to apply modality-specific validation rules"
     },
     "datasheet_sensor_modality_other": {
       "type": [
         "string",
         "null"
       ],
-      "description": "Free-text modality description when datasheet_sensor_modality is other"
+      "description": "Free-text modality description when datasheet_sensor_modality contains other"
     },
     "datasheet_model": {
       "type": "string",
@@ -219,7 +221,9 @@
       "if": {
         "properties": {
           "datasheet_sensor_modality": {
-            "const": "light"
+            "contains": {
+              "const": "light"
+            }
           }
         },
         "required": [
@@ -239,7 +243,9 @@
       "if": {
         "properties": {
           "datasheet_sensor_modality": {
-            "const": "other"
+            "contains": {
+              "const": "other"
+            }
           }
         },
         "required": [
@@ -247,6 +253,12 @@
         ]
       },
       "then": {
+        "properties": {
+          "datasheet_sensor_modality_other": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
         "required": [
           "datasheet_sensor_modality_other"
         ]
@@ -257,7 +269,9 @@
         "properties": {
           "datasheet_sensor_modality": {
             "not": {
-              "const": "light"
+              "contains": {
+                "const": "light"
+              }
             }
           }
         },
@@ -295,12 +309,14 @@
   ],
   "examples": [
     {
-      "schema_version": "2.0.0",
+      "schema_version": "3.0.0",
       "datasheet_id": "lumitech-lt100-v1.0",
       "datasheet_version": "1.0",
       "datasheet_manufacturer": "Lumitech",
       "datasheet_type": "Wearable light sensor",
-      "datasheet_sensor_modality": "light",
+      "datasheet_sensor_modality": [
+        "light"
+      ],
       "datasheet_model": "LT-100",
       "datasheet_calibration_interval": 365,
       "datasheet_calibration_spectral_sensitivity": [
@@ -326,12 +342,14 @@
       ]
     },
     {
-      "schema_version": "2.0.0",
+      "schema_version": "3.0.0",
       "datasheet_id": "actlumus-accelerometer-v1.0",
       "datasheet_version": "1.0",
       "datasheet_manufacturer": "ExampleCorp",
       "datasheet_type": "Tri-axial accelerometer",
-      "datasheet_sensor_modality": "accelerometer",
+      "datasheet_sensor_modality": [
+        "accelerometer"
+      ],
       "datasheet_model": "ACC-100",
       "datasheet_calibration_interval": null,
       "datasheet_calibration_parameters": [

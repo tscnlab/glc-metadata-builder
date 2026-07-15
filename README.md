@@ -25,7 +25,7 @@ The builder helps data owners create a draft GLC metadata package by guiding the
 - dataset file groups and variables
 - export and soft validation
 
-It currently supports schema release `2.0.0`.
+It supports schema release `2.0.0` and the in-development `3.0.0` schema.
 
 ## What it exports
 
@@ -44,7 +44,8 @@ It can also download a metadata package `.zip`.
 The zip contains:
 
 - generated metadata files
-- the `schemas/2.0.0/` schema bundle referenced by `datapackage.json`
+- the selected schema bundle referenced by `datapackage.json`
+- `glc-builder-project.json`, which preserves builder-only editing state
 - a short `README.txt`
 
 The zip does not include the original data files selected in the dataset file assistant. Those files still need to be added to the exported package before running the full validator.
@@ -144,3 +145,8 @@ http://localhost:8766
 ```
 
 If changes do not appear immediately, hard refresh the browser.
+## Dataset templates
+
+Schema 3.0.0 projects can create linked dataset records from a reusable dataset template. Configure a representative dataset, save it as a template, and create linked records for one or more participants. Template updates propagate to inherited values while preserving dataset-specific overrides. Removing an inherited file group excludes it only from that dataset, and it can be restored later.
+
+The metadata package ZIP includes `glc-builder-project.json`. This builder-only file preserves templates, links, overrides, and file-group exclusions; it is not referenced by `datapackage.json` and is not scientific metadata. To resume editing, extract the package and import the package folder. The builder detects the project file automatically. Importing a package without this file still restores the expanded metadata, but its datasets are independent.
