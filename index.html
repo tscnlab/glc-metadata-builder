@@ -22,7 +22,7 @@
           target="_blank"
           rel="noopener noreferrer"
         >
-          Schema 2.0.0
+          Schema 3.0.0 testing
         </a>
       </header>
 
@@ -180,7 +180,7 @@
                 <p id="package-folder-import-summary">
                   The builder looks for <code>datapackage.json</code>, <code>study.json</code>,
                   <code>participants.csv</code>, <code>participant_characteristics.csv</code>, <code>devices.json</code>,
-                  <code>device_datasheet.json</code>, and <code>datasets.json</code> at the folder root or inside <code>data/</code>.
+                  <code>device_datasheet.json</code> (or <code>device_datasheets.json</code>), and <code>datasets.json</code> at the folder root or inside <code>data/</code>.
                 </p>
                 <button type="button" class="small-button primary-import-button" id="import-package-folder-button">Import selected metadata folder</button>
                 <button type="button" class="secondary-button small-button" id="remove-package-folder-import">Remove imported metadata folder</button>
@@ -189,8 +189,8 @@
                 <label>
                   Schema version <span class="required">*</span>
                   <select id="schema-version" name="schema-version" required>
-                    <option value="2.0.0" selected>2.0.0</option>
-                    <option value="3.0.0">3.0.0</option>
+                    <option value="2.0.0">2.0.0</option>
+                    <option value="3.0.0" selected>3.0.0</option>
                   </select>
                 </label>
                 <label>
@@ -963,6 +963,6 @@
 
     <datalist id="timezone-options"></datalist>
     <script src="datetime-metadata.js"></script>
-    <script src="app.js?v=20260716-schema-testing"></script>
+    <script src="app.js?v=20260716-schema-testing-3"></script>
   </body>
 </html>

@@ -5362,7 +5362,7 @@ async function importPackageFolder(files) {
 }
 
 function clearPackageFolderImport() {
-  fields.schemaVersion.value = "2.0.0";
+  fields.schemaVersion.value = "3.0.0";
   fields.packageName.value = "";
   fields.packageTitle.value = "";
 
@@ -5441,7 +5441,7 @@ function findPackageMetadataFiles(files) {
     participants: findPackageFile(files, ["participants.csv", "participants.tsv", "participants.json"]),
     characteristics: findPackageFile(files, ["participant_characteristics.csv", "participant_characteristics.tsv", "participant_characteristics.json"]),
     devices: findPackageFile(files, ["devices.json"]),
-    datasheets: findPackageFile(files, ["device_datasheet.json", "sensor_datasheet.json"]),
+    datasheets: findPackageFile(files, ["device_datasheet.json", "device_datasheets.json", "sensor_datasheet.json"]),
     datasets: findPackageFile(files, ["datasets.json"]),
     builderProject: findPackageFile(files, ["glc-builder-project.json"]),
   };
