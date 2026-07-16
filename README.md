@@ -45,7 +45,6 @@ The zip contains:
 
 - generated metadata files
 - the selected schema bundle referenced by `datapackage.json`
-- `glc-builder-project.json`, which preserves builder-only editing state
 - a short `README.txt`
 
 The zip does not include the original data files selected in the dataset file assistant. Those files still need to be added to the exported package before running the full validator.
@@ -147,6 +146,4 @@ http://localhost:8766
 If changes do not appear immediately, hard refresh the browser.
 ## Dataset templates
 
-Schema 3.0.0 projects can create linked dataset records from a reusable dataset template. Configure a representative dataset, save it as a template, and create linked records for one or more participants. Template updates propagate to inherited values while preserving dataset-specific overrides. Removing an inherited file group excludes it only from that dataset, and it can be restored later.
-
-The metadata package ZIP includes `glc-builder-project.json`. This builder-only file preserves templates, links, overrides, and file-group exclusions; it is not referenced by `datapackage.json` and is not scientific metadata. To resume editing, extract the package and import the package folder. The builder detects the project file automatically. Importing a package without this file still restores the expanded metadata, but its datasets are independent.
+Dataset templates are deferred while schema 3.0.0 metadata creation and validation are stabilized. The current testing build creates dataset records manually and does not expose template controls or include builder-specific project state in exported packages. The preserved implementation and remaining work are documented in `docs/dataset-template-backlog.md`.

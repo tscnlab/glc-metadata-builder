@@ -34,7 +34,7 @@
             <li data-step-link="study">Study</li>
             <li data-step-link="participants">Participants</li>
             <li data-step-link="devices">Devices</li>
-            <li data-step-link="templates">Dataset templates</li>
+            <li data-step-link="templates" hidden>Dataset templates</li>
             <li data-step-link="datasets">Datasets</li>
             <li data-step-link="export">Export package</li>
           </ol>
@@ -485,11 +485,11 @@
                 <button type="button" class="secondary-button" data-prev-step="participants">Back</button>
                 <button type="button" class="secondary-button danger-button" id="clear-devices-page">Clear device inventory</button>
                 <button type="button" class="secondary-button danger-button" id="clear-datasheets-page">Clear datasheets section</button>
-                <button type="button" data-next-step="templates">Next: Dataset templates</button>
+                <button type="button" data-next-step="datasets">Next: Datasets</button>
               </div>
             </section>
 
-            <section class="form-section builder-step" data-step="templates">
+            <section class="form-section builder-step" data-step="templates" hidden>
               <div class="section-heading">
                 <span>5</span>
                 <div>
@@ -913,7 +913,7 @@
                 <button type="button" class="secondary-button small-button" id="download-dataset-schema">Dataset schema</button>
               </div>
               <div class="actions inline-actions">
-                <button type="button" class="secondary-button" data-prev-step="templates">Back</button>
+                <button type="button" class="secondary-button" data-prev-step="devices">Back</button>
                 <button type="button" class="secondary-button danger-button" id="clear-dataset-page">Clear Dataset page</button>
                 <button type="button" data-next-step="export">Next: Export</button>
               </div>
@@ -934,7 +934,7 @@
               </p>
               <div class="export-grid">
                 <button type="button" id="download-package-zip" class="zip-download">Download metadata package .zip</button>
-                <button type="button" id="download-builder-project">Download builder project</button>
+                <button type="button" id="download-builder-project" hidden>Download builder project</button>
                 <button type="button" id="download-datapackage">Download datapackage.json</button>
                 <button type="button" id="download-study">Download study.json</button>
                 <button type="button" id="download-participants">Download participants.csv</button>
@@ -963,6 +963,6 @@
 
     <datalist id="timezone-options"></datalist>
     <script src="datetime-metadata.js"></script>
-    <script src="app.js?v=20260715-template-page-4"></script>
+    <script src="app.js?v=20260716-schema-testing"></script>
   </body>
 </html>
