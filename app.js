@@ -3,6 +3,31 @@ const FILE_NON_DEVICE_MODALITIES = new Set(["questionnaire", "diary", "wear_log"
 
 const cloneJson = (value) => value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 const valuesEqual = (left, right) => JSON.stringify(left) === JSON.stringify(right);
+const isEmptyOptionalValue = (value) => value === null
+  || (typeof value === "string" && value.trim() === "")
+  || (Array.isArray(value) && value.length === 0)
+  || (
+    value
+    && typeof value === "object"
+    && !Array.isArray(value)
+    && Object.keys(value).length === 0
+  );
+
+function omitEmptyOptionalProperties(value, schema) {
+  if (!schema || value === undefined) return value;
+  if (Array.isArray(value)) {
+    return value.map((entry) => omitEmptyOptionalProperties(entry, schema.items));
+  }
+  if (!value || typeof value !== "object") return value;
+  const required = new Set(schema.required || []);
+  const properties = schema.properties || {};
+  return Object.fromEntries(Object.entries(value).flatMap(([key, entry]) => {
+    const cleaned = omitEmptyOptionalProperties(entry, properties[key]);
+    return !required.has(key) && isEmptyOptionalValue(cleaned) ? [] : [[key, cleaned]];
+  }));
+}
+
+const omitEmptyOptionalEntities = (rows, schema) => rows.map((row) => omitEmptyOptionalProperties(row, schema));
 const createBuilderId = (prefix) => `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
 
 // Deferred until the schema 3.0.0 metadata workflow is stable and fully tested.
@@ -23,6 +48,7 @@ const createFileGroup = (name = "Primary file group") => ({
   collectionMethodOther: "",
   recordedBy: "",
   recordedByOther: "",
+  description: "",
   deviceId: "",
   deviceLocation: "",
   deviceLocationType: "",
@@ -166,6 +192,7 @@ const state = {
   fileGroups: initialDataset.fileGroups,
   supportedTimeZones: [],
   supportedTimeZoneSet: new Set(),
+  entitySchemas: {},
 };
 
 const fileInput = document.querySelector("#file-input");
@@ -276,6 +303,7 @@ const fields = {
   fileCollectionMethodOther: document.querySelector("#file-collection-method-other"),
   fileRecordedBy: document.querySelector("#file-recorded-by"),
   fileRecordedByOther: document.querySelector("#file-recorded-by-other"),
+  fileDescription: document.querySelector("#file-description"),
   deviceId: document.querySelector("#device-id"),
   deviceLocation: document.querySelector("#device-location"),
   deviceLocationType: document.querySelector("#device-location-type"),
@@ -860,7 +888,19 @@ function clearStudyPage() {
   updatePreview();
 }
 
+function syncActiveSchemaPill(schemaVersion = fields.schemaVersion.value || "2.0.0") {
+  const pill = document.querySelector("#active-schema-pill");
+  if (!pill) return;
+  const profileFilename = schemaVersion === "3.0.0"
+    ? "glc-dp-profile.json"
+    : "gleam-dp-profile.json";
+  pill.textContent = `Schema ${schemaVersion}`;
+  pill.href = `https://github.com/tscnlab/glc-metadata-validator/blob/main/schemas/${schemaVersion}/${profileFilename}`;
+  pill.setAttribute("aria-label", `View GLC schema ${schemaVersion}`);
+}
+
 async function loadSchemaHelp(schemaVersion = fields.schemaVersion.value || "2.0.0") {
+  syncActiveSchemaPill(schemaVersion);
   try {
     const [studySchema, contributorSchema, participantsSchema, characteristicsSchema, deviceSchema, datasheetSchema, datasetSchema] = await Promise.all([
       fetch(`schemas/${schemaVersion}/study.schema.json`).then((response) => response.json()),
@@ -871,6 +911,7 @@ async function loadSchemaHelp(schemaVersion = fields.schemaVersion.value || "2.0
       fetch(`schemas/${schemaVersion}/device_datasheet.schema.json`).then((response) => response.json()),
       fetch(`schemas/${schemaVersion}/dataset.schema.json`).then((response) => response.json()),
     ]);
+    state.entitySchemas = { study: studySchema, device: deviceSchema, datasheet: datasheetSchema, dataset: datasetSchema };
 
     applySchemaHelp(studySchema, {
       "study-internal-id": "study_internal_id",
@@ -977,6 +1018,7 @@ function applyDatasetSchemaHelp(schema) {
     deviceId: schemaHelpTitle(datasetFile.dataset_file_crossref_device_id || crossref.dataset_crossref_device_id, "Internal ID for device"),
     deviceLocation: schemaHelpTitle(datasetFile.dataset_file_device_location || properties.dataset_device_location, "Device location for this file group"),
     deviceLocationType: schemaHelpTitle(datasetFile.dataset_file_device_location_type, "Controlled device location category for this file group"),
+    description: schemaHelpTitle(datasetFile.dataset_file_description, "Description of this file group"),
     temporalResolution: schemaHelpTitle(datasetFile.dataset_file_temporal_resolution || properties.dataset_sampling_interval, "Temporal resolution for this file group"),
     instructions: schemaHelpTitle(datasetFile.dataset_file_instructions || properties.dataset_instructions, "Collection instructions for this file group"),
     latitude: `Latitude of data collection. Type: ${locationItemType}.`,
@@ -1017,6 +1059,7 @@ function applyDatasetSchemaHelp(schema) {
     [fields.samplingInterval, fieldHelp.temporalResolution],
     [fields.temporalResolutionUnit, fieldHelp.temporalResolution],
     [fields.instructions, fieldHelp.instructions],
+    [fields.fileDescription, fieldHelp.description],
     [fields.latitude, fieldHelp.latitude],
     [fields.longitude, fieldHelp.longitude],
     ...fileGroupHelp,
@@ -1548,7 +1591,7 @@ function renderContributors() {
         <label title="${escapeHtml(emailHelp)}">Email ${helpMarker(emailHelp)}
           <input value="${escapeHtml(contributor.email)}" data-field="email" placeholder="jane@example.org" title="${escapeHtml(emailHelp)}" />
         </label>
-        <label title="${escapeHtml(orcidHelp)}">ORCID <span class="required">*</span> ${helpMarker(orcidHelp)}
+        <label title="${escapeHtml(orcidHelp)}">ORCID ${helpMarker(orcidHelp)}
           <input value="${escapeHtml(contributor.orcid)}" data-field="orcid" placeholder="0000-0000-0000-0000" title="${escapeHtml(orcidHelp)}" />
         </label>
         <label title="${escapeHtml(institutionNameHelp)}">Institution name ${helpMarker(institutionNameHelp)}
@@ -2207,6 +2250,7 @@ function fileGroupFromSchema(fileGroup, datasetTerms, fallbackName) {
   group.collectionMethodOther = instrument.collection_method_other || "";
   group.recordedBy = instrument.recorded_by || "";
   group.recordedByOther = instrument.recorded_by_other || "";
+  group.description = fileGroup.dataset_file_description || "";
   group.deviceId = fileGroup.dataset_file_crossref_device_id || "";
   group.deviceLocation = fileGroup.dataset_file_device_location || "";
   group.deviceLocationType = fileGroup.dataset_file_device_location_type || "";
@@ -2267,6 +2311,7 @@ function variableStateFromSchema(variables, primaryVariables) {
     stateByColumn[column] = {
       primary: primary.has(column),
       label: variable.dataset_file_variables_labels || column,
+      description: variable.dataset_file_variables_description || "",
       unit: variable.dataset_file_variables_units || "",
       calibration: variable.dataset_file_variables_calibration || "",
       type: variable.dataset_file_variables_type || "",
@@ -2439,7 +2484,7 @@ function renderDevices() {
     const manufacturerHelp = schemaHelpTitle(help.device_manufacturer, "Manufacturer of the device");
     const modelHelp = schemaHelpTitle(help.device_model, "Model name or number of the device");
     const serialNumberHelp = schemaHelpTitle(help.device_serial_number, "Serial number assigned to the individual device");
-    const calibrationDateHelp = schemaHelpTitle(help.device_calibration_date, "Date of last calibration, or blank if unknown");
+    const calibrationDateHelp = schemaHelpTitle(help.device_calibration_date, "Optional date of last calibration. Leave blank to omit it when unknown or not applicable.");
     const firmwareHelp = schemaHelpTitle(help.device_firmware_version, "Firmware version installed on the device");
     const datasheetHelp = schemaHelpTitle(help.device_datasheet_id, "Reference to the general device datasheet. This can be completed in the datasheet section.");
     const sensorTypeHelp = schemaHelpTitle(sensorHelp.device_sensor_type, "Sensor type, e.g. photopic light sensor");
@@ -2463,8 +2508,8 @@ function renderDevices() {
         <label title="${escapeHtml(serialNumberHelp)}">Serial number <span class="required">*</span> ${helpMarker(serialNumberHelp)}
           <input data-field="serialNumber" value="${escapeHtml(device.serialNumber)}" placeholder="SN123" title="${escapeHtml(serialNumberHelp)}" />
         </label>
-        <label title="${escapeHtml(calibrationDateHelp)}">Calibration date <span class="required">*</span> ${helpMarker(calibrationDateHelp)}
-          <input data-field="calibrationDate" value="${escapeHtml(device.calibrationDate)}" placeholder="YYYY-MM-DD or blank if unknown" title="${escapeHtml(calibrationDateHelp)}" />
+        <label title="${escapeHtml(calibrationDateHelp)}">Calibration date ${helpMarker(calibrationDateHelp)}
+          <input data-field="calibrationDate" value="${escapeHtml(device.calibrationDate)}" placeholder="Optional: YYYY-MM-DD" title="${escapeHtml(calibrationDateHelp)}" />
         </label>
         <label title="${escapeHtml(firmwareHelp)}">Firmware version ${helpMarker(firmwareHelp)}
           <input data-field="firmwareVersion" value="${escapeHtml(device.firmwareVersion)}" placeholder="v1.2.3" title="${escapeHtml(firmwareHelp)}" />
@@ -3414,6 +3459,7 @@ function syncControlsFromActiveGroup() {
   fields.fileCollectionMethodOther.value = group.collectionMethodOther || "";
   fields.fileRecordedBy.value = group.recordedBy || "";
   fields.fileRecordedByOther.value = group.recordedByOther || "";
+  fields.fileDescription.value = group.description || "";
   fields.deviceLocation.value = group.deviceLocation || "";
   fields.deviceLocationType.value = group.deviceLocationType || "";
   syncDeviceLocationTypeControls();
@@ -3464,6 +3510,7 @@ function syncActiveGroupFromControls() {
   group.collectionMethodOther = fields.fileCollectionMethodOther.value.trim();
   group.recordedBy = fields.fileRecordedBy.value || "";
   group.recordedByOther = fields.fileRecordedByOther.value.trim();
+  group.description = fields.fileDescription.value.trim();
   group.deviceId = fields.deviceId.value || "";
   group.deviceLocation = fields.deviceLocation.value.trim();
   group.deviceLocationType = fields.deviceLocationType.value || "";
@@ -3503,12 +3550,12 @@ function fileGroupUsesSensor(group = activeGroup()) {
 }
 
 function fileGroupRequiresDevice(group = activeGroup()) {
-  return fileGroupUsesSensor(group) || (group?.modalities || []).includes("wear_log");
+  return fileGroupUsesSensor(group);
 }
 
 function fileGroupAllowsDevice(group = activeGroup()) {
   return fileGroupRequiresDevice(group)
-    || (group?.modalities || []).some((modality) => ["questionnaire", "diary"].includes(modality));
+    || (group?.modalities || []).some((modality) => ["questionnaire", "diary", "wear_log"].includes(modality));
 }
 
 function selectedFileModalities() {
@@ -3744,6 +3791,29 @@ function renderVariables() {
     .map((entry) => `<option value="${escapeHtml(entry.term)}">${escapeHtml(entry.term)}</option>`)
     .join("");
   const schema3 = (fields.schemaVersion.value || "2.0.0") === "3.0.0";
+  const factorTypeGuidance = "Select Factor only for categorical variables with a finite set of defined levels, such as 0 = No and 1 = Yes. A numerical factor, coefficient, ratio, proportion, percentage, score, count, or other quantitatively meaningful value must be Numeric or Integer.";
+
+  if (schema3) {
+    const unitOptions = document.createElement("datalist");
+    unitOptions.id = "ucum-unit-options";
+    unitOptions.innerHTML = `
+      <option value="1">dimensionless</option>
+      <option value="{count}">count</option>
+      <option value="{score}">score</option>
+      <option value="%">percent</option>
+      <option value="s">second</option>
+      <option value="min">minute</option>
+      <option value="h">hour</option>
+      <option value="d">day</option>
+      <option value="lx">lux</option>
+      <option value="Cel">degree Celsius</option>
+      <option value="m">metre</option>
+      <option value="m/s">metres per second</option>
+      <option value="m/s2">metres per second squared</option>
+      <option value="Hz">hertz</option>
+    `;
+    variablesTable.appendChild(unitOptions);
+  }
 
   const header = document.createElement("div");
   header.className = `variable-row variable-header${schema3 ? " schema-3-variable-row" : ""}`;
@@ -3751,7 +3821,8 @@ function renderVariables() {
     <span title="A principal or default variable used when analysing this file group.">Primary variable</span>
     <span>File column</span>
     <span>Label</span>
-    <span>Units</span>
+    ${schema3 ? "<span>Description / full question</span>" : ""}
+    <span>${schema3 ? "Unit (UCUM preferred)" : "Units"}</span>
     <span>Calibration</span>
     ${schema3 ? "<span>Type</span><span>Factor levels</span>" : ""}
     <span>Semantic term</span>
@@ -3763,22 +3834,24 @@ function renderVariables() {
     const saved = group.variableState[column] || {};
     const term = saved.term || guessTerm(column);
     const variableType = saved.type || "";
+    const unitEnabled = !schema3 || ["numeric", "integer"].includes(variableType);
     const row = document.createElement("div");
     row.className = `variable-row${schema3 ? " schema-3-variable-row" : ""}`;
     row.innerHTML = `
       <input type="checkbox" class="primary-check" data-column="${escapeHtml(column)}" aria-label="Select ${escapeHtml(column)} as a primary variable" ${saved.primary ? "checked" : ""} ${!schema3 && group.auxiliary ? "disabled" : ""} />
       <strong>${escapeHtml(column)}</strong>
       <input type="text" class="label-input" data-column="${escapeHtml(column)}" value="${escapeHtml(saved.label || column)}" aria-label="Label for ${escapeHtml(column)}" />
-      <input type="text" class="unit-input" data-column="${escapeHtml(column)}" value="${escapeHtml(saved.unit || guessUnit(column))}" aria-label="Unit for ${escapeHtml(column)}" />
+      ${schema3 ? `<textarea class="description-input" data-column="${escapeHtml(column)}" aria-label="Description or full question for ${escapeHtml(column)}" placeholder="Full question, source wording, or interpretation">${escapeHtml(saved.description || "")}</textarea>` : ""}
+      <input type="text" class="unit-input" data-column="${escapeHtml(column)}" value="${escapeHtml(unitEnabled ? (saved.unit || guessUnit(column)) : "")}" aria-label="Unit for ${escapeHtml(column)}" title="${unitEnabled ? "Unit is required for numeric and integer variables. Choose a UCUM code or enter a precise custom unit." : "Units do not apply to string, boolean, or factor variables."}" ${schema3 ? 'list="ucum-unit-options"' : ""} ${unitEnabled ? "" : "disabled"} />
       <input type="text" class="calibration-input" data-column="${escapeHtml(column)}" value="${escapeHtml(saved.calibration || "N/A")}" aria-label="Calibration for ${escapeHtml(column)}" />
       ${schema3 ? `
-        <select class="type-select" data-column="${escapeHtml(column)}" aria-label="Type for ${escapeHtml(column)}">
+        <select class="type-select" data-column="${escapeHtml(column)}" aria-label="Type for ${escapeHtml(column)}" title="${escapeHtml(factorTypeGuidance)}">
           <option value="">Select type</option>
           <option value="string">String</option>
           <option value="boolean">Boolean</option>
-          <option value="numeric">Numeric</option>
-          <option value="integer">Integer</option>
-          <option value="factor">Factor</option>
+          <option value="numeric">Numeric (quantitative)</option>
+          <option value="integer">Integer (quantitative)</option>
+          <option value="factor">Factor (categorical levels)</option>
         </select>
         <textarea class="factor-levels-input" data-column="${escapeHtml(column)}" aria-label="Factor levels for ${escapeHtml(column)}" placeholder="value | label | optional description" ${variableType === "factor" ? "" : "disabled"}>${escapeHtml(saved.factorLevelsText || "")}</textarea>
       ` : ""}
@@ -3790,7 +3863,17 @@ function renderVariables() {
     if (schema3) {
       row.querySelector(".type-select").value = variableType;
       row.querySelector(".type-select").addEventListener("change", (event) => {
-        row.querySelector(".factor-levels-input").disabled = event.target.value !== "factor";
+        const isFactor = event.target.value === "factor";
+        const isQuantitative = ["numeric", "integer"].includes(event.target.value);
+        row.querySelector(".factor-levels-input").disabled = !isFactor;
+        const unitInput = row.querySelector(".unit-input");
+        unitInput.disabled = !isQuantitative;
+        unitInput.title = isQuantitative
+          ? "Unit is required for numeric and integer variables. Choose a UCUM code or enter a precise custom unit."
+          : "Units do not apply to string, boolean, or factor variables.";
+        if (!isQuantitative) {
+          unitInput.value = "";
+        }
       });
     }
   });
@@ -3814,6 +3897,7 @@ function seedVariableState(group) {
     seeded[column] = existing[column] || {
       primary: false,
       label: column,
+      description: "",
       unit: guessUnit(column),
       calibration: "N/A",
       type: "",
@@ -3835,6 +3919,7 @@ function collectCurrentVariableState(group) {
     current[column] = {
       primary: row.querySelector(".primary-check")?.checked || false,
       label: row.querySelector(".label-input")?.value || "",
+      description: row.querySelector(".description-input")?.value || "",
       unit: row.querySelector(".unit-input")?.value || "",
       calibration: row.querySelector(".calibration-input")?.value || "",
       type: row.querySelector(".type-select")?.value || current[column]?.type || "",
@@ -3860,7 +3945,7 @@ function enforcePrimaryLimit(event) {
 function guessUnit(column) {
   const normalized = column.toLowerCase();
   if (normalized.includes("lux") || normalized.includes("light")) return "lx";
-  if (normalized.includes("temperature")) return "C";
+  if (normalized.includes("temperature")) return "Cel";
   if (normalized.includes("time") || normalized.includes("date")) return "N/A";
   return "Unknown";
 }
@@ -3915,15 +4000,22 @@ function getVariableMetadata(group, schemaVersion) {
     const metadata = {
       dataset_file_variables_name: column,
       dataset_file_variables_labels: saved.label || column,
-      dataset_file_variables_units: saved.unit || "Unknown",
       dataset_file_variables_calibration: saved.calibration || null,
       dataset_file_variables_term: termObject,
     };
     if (schemaVersion === "3.0.0") {
       metadata.dataset_file_variables_type = saved.type || "";
+      if (saved.description) {
+        metadata.dataset_file_variables_description = saved.description;
+      }
       if (saved.type === "factor") {
         metadata.dataset_file_variables_factor_levels = parseFactorLevels(saved.factorLevelsText);
       }
+      if (["numeric", "integer"].includes(saved.type)) {
+        metadata.dataset_file_variables_units = saved.unit || "";
+      }
+    } else {
+      metadata.dataset_file_variables_units = saved.unit || "Unknown";
     }
     return metadata;
   });
@@ -3977,6 +4069,9 @@ function buildDatasetFile(group, schemaVersion) {
       }
     }
     datasetFile.dataset_file_role = group.role || "";
+    if (group.description) {
+      datasetFile.dataset_file_description = group.description;
+    }
     datasetFile.dataset_file_data_state = group.dataState || "";
     const hasDeviceMetadata = hasAnyValue([
       group.deviceId,
@@ -4043,9 +4138,9 @@ function buildDatasetRecordDraft(record) {
     } : {}),
     dataset_crossref: {
       dataset_crossref_study_id: record.studyId || "",
-      dataset_crossref_participant_id: schemaVersion === "3.0.0" && record.participantAssociated === false
-        ? null
-        : record.participantId || "",
+      ...(schemaVersion === "3.0.0" && record.participantAssociated === false
+        ? {}
+        : { dataset_crossref_participant_id: record.participantId || "" }),
     },
     dataset_timezone: record.datasetTimezone || "",
     dataset_location: schemaVersion === "3.0.0"
@@ -4073,7 +4168,7 @@ function buildDatasetDraft() {
   if (state.activeStep === "datasets") {
     syncActiveDatasetFromControls();
   }
-  return state.datasets.map(buildDatasetRecordDraft);
+  return omitEmptyOptionalEntities(state.datasets.map(buildDatasetRecordDraft), state.entitySchemas.dataset);
 }
 
 function getDatasetVariableTerms(fileGroups = state.fileGroups) {
@@ -4118,7 +4213,7 @@ function buildStudyDraft() {
   if (fields.studyDatasetsPreview) {
     fields.studyDatasetsPreview.value = datasetIds.join(", ");
   }
-  return [
+  return omitEmptyOptionalEntities([
     {
       schema_version: fields.schemaVersion.value || "2.0.0",
       study_internal_id: getStudyId(),
@@ -4138,7 +4233,7 @@ function buildStudyDraft() {
       study_funding_sources: splitList(fields.studyFundingSources.value),
       study_keywords: splitList(fields.studyKeywords.value),
     },
-  ];
+  ], state.entitySchemas.study);
 }
 
 function buildStudyGroups() {
@@ -4159,19 +4254,25 @@ function buildStudyGroups() {
 function buildContributors() {
   const contributors = state.contributors
     .filter((entry) => entry.fullName || entry.orcid || entry.email || entry.institutionName)
-    .map((entry) => ({
-      contributor_full_name: entry.fullName,
-      contributor_roles: splitSemicolonList(entry.roles),
-      contributor_email: entry.email || null,
-      contributor_orcid: entry.orcid,
-      contributor_institution: entry.institutionName || entry.institutionCountry
-        ? {
-            contributor_institution_name: entry.institutionName,
-            contributor_institution_city: entry.institutionCity || null,
-            contributor_institution_country: entry.institutionCountry,
-          }
-        : null,
-    }));
+    .map((entry) => {
+      const contributor = {
+        contributor_full_name: entry.fullName,
+      };
+      const roles = splitSemicolonList(entry.roles);
+      if (roles.length) contributor.contributor_roles = roles;
+      if (entry.email) contributor.contributor_email = entry.email;
+      if (entry.orcid) contributor.contributor_orcid = entry.orcid;
+      if (entry.institutionName || entry.institutionCountry) {
+        contributor.contributor_institution = {
+          contributor_institution_name: entry.institutionName,
+          contributor_institution_country: entry.institutionCountry,
+        };
+        if (entry.institutionCity) {
+          contributor.contributor_institution.contributor_institution_city = entry.institutionCity;
+        }
+      }
+      return contributor;
+    });
   return contributors.length ? contributors : null;
 }
 
@@ -4200,7 +4301,7 @@ function buildCharacteristicsRows() {
 
 function buildDevicesDraft({ includeEmpty = false } = {}) {
   const devices = includeEmpty && state.devices.length === 0 ? [createDevice()] : state.devices;
-  return devices
+  const rows = devices
     .filter((entry) => includeEmpty || entry.id || entry.manufacturer || entry.model || entry.serialNumber)
     .map((entry) => ({
       schema_version: fields.schemaVersion.value || "2.0.0",
@@ -4213,13 +4314,14 @@ function buildDevicesDraft({ includeEmpty = false } = {}) {
       device_datasheet_id: entry.datasheetId,
       device_sensors: parseDeviceSensors(entry.sensorsText),
     }));
+  return omitEmptyOptionalEntities(rows, state.entitySchemas.device);
 }
 
 function buildDatasheetsDraft({ includeEmpty = false } = {}) {
   const datasheets = includeEmpty && state.datasheets.length === 0 ? [createDatasheet()] : state.datasheets;
   const schemaVersion = fields.schemaVersion.value || "2.0.0";
   const schema3 = String(schemaVersion).startsWith("3.");
-  return datasheets
+  const rows = datasheets
     .filter((entry) => includeEmpty || entry.id || entry.manufacturer || entry.model)
     .map((entry) => {
       const base = {
@@ -4260,6 +4362,7 @@ function buildDatasheetsDraft({ includeEmpty = false } = {}) {
       }
       return result;
     });
+  return omitEmptyOptionalEntities(rows, state.entitySchemas.datasheet);
 }
 
 function buildDataPackage() {
@@ -4317,7 +4420,7 @@ function buildDataPackage() {
   }
 
   return {
-    profile: `${schemaBase}/gleam-dp-profile.json`,
+    profile: `${schemaBase}/${schemaVersion === "3.0.0" ? "glc-dp-profile.json" : "gleam-dp-profile.json"}`,
     schema_version: schemaVersion,
     name: fields.packageName.value,
     title: fields.packageTitle.value,
@@ -4659,6 +4762,7 @@ function fileGroupHasUserContent(group) {
     group.collectionMethodOther,
     group.recordedBy,
     group.recordedByOther,
+    group.description,
     group.deviceId,
     group.deviceLocation,
     group.deviceLocationType,
@@ -4862,7 +4966,6 @@ function validateDevicesForExport() {
       [device.manufacturer, "manufacturer"],
       [device.model, "model"],
       [device.serialNumber, "serial number"],
-      [device.calibrationDate, "calibration date"],
       [device.datasheetId, "datasheet ID"],
     ].forEach(([value, fieldName]) => {
       if (isBlank(value)) {
@@ -5166,6 +5269,13 @@ function validateDatasetsForExport() {
           if (isBlank(variable.type)) {
             issues.push(validationIssue("Datasets", `${groupLabel}, variable ${column}: type is missing.`));
             return;
+          }
+          const quantitative = ["numeric", "integer"].includes(variable.type);
+          if (quantitative && isBlank(variable.unit)) {
+            issues.push(validationIssue("Datasets", `${groupLabel}, variable ${column}: unit is required for numeric and integer variables.`));
+          }
+          if (quantitative && ["n/a", "na", "unknown"].includes(String(variable.unit || "").trim().toLowerCase())) {
+            issues.push(validationIssue("Datasets", `${groupLabel}, variable ${column}: replace the placeholder unit with a UCUM code or a precise custom unit.`));
           }
           if (variable.type === "factor") {
             const levels = parseFactorLevels(variable.factorLevelsText);
@@ -5484,7 +5594,6 @@ const ZIP_SCHEMA_FILES = [
   "dataset.schema.json",
   "device.schema.json",
   "device_datasheet.schema.json",
-  "gleam-dp-profile.json",
   "participant_characteristics.schema.json",
   "participants.schema.json",
   "study.schema.json",
@@ -5562,7 +5671,10 @@ async function buildPackageZipFiles() {
     });
   }
 
-  const schemaFiles = await Promise.all(ZIP_SCHEMA_FILES.map(async (filename) => {
+  const profileFilename = schemaVersion === "3.0.0"
+    ? "glc-dp-profile.json"
+    : "gleam-dp-profile.json";
+  const schemaFiles = await Promise.all([...ZIP_SCHEMA_FILES, profileFilename].map(async (filename) => {
     const response = await fetch(`schemas/${schemaVersion}/${filename}`);
     if (!response.ok) {
       throw new Error(`Could not load schema file ${filename}`);

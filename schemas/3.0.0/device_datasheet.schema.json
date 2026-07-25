@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/<your-org-or-username>/<your-repo>/main/schemas/3.0.0/device_datasheet.schema.json",
+  "$id": "https://raw.githubusercontent.com/tscnlab/glc-metadata-validator/main/schemas/3.0.0/device_datasheet.schema.json",
   "version": "3.0.0",
   "title": "Generalized Device/Sensor Datasheet Schema",
   "description": "Generalized metadata schema for device and sensor datasheets.",
@@ -9,27 +9,39 @@
   "properties": {
     "schema_version": {
       "type": "string",
-      "description": "Version of the metadata schema used by this datasheet record"
+      "description": "Version of the metadata schema used by this datasheet record",
+      "examples": [
+        "3.0.0"
+      ]
     },
     "datasheet_id": {
       "type": "string",
       "pattern": "^[a-z0-9][a-z0-9._-]*(-v[0-9]+(\\.[0-9]+)*)?$",
-      "description": "Unique datasheet identifier referenced by devices or sensors"
+      "description": "Unique datasheet identifier referenced by devices or sensors",
+      "examples": [
+        "example-instruments-ls100-v1"
+      ]
     },
     "datasheet_version": {
-      "type": [
-        "string",
-        "null"
-      ],
-      "description": "Version label for this datasheet, e.g. 1.0"
+      "type": "string",
+      "description": "Version label for this datasheet, e.g. 1.0",
+      "examples": [
+        "1.0"
+      ]
     },
     "datasheet_manufacturer": {
       "type": "string",
-      "description": "Manufacturer of the device or sensor"
+      "description": "Manufacturer of the device or sensor",
+      "examples": [
+        "Example Instruments"
+      ]
     },
     "datasheet_type": {
       "type": "string",
-      "description": "Human-readable type of the device or sensor"
+      "description": "Human-readable type of the device or sensor",
+      "examples": [
+        "wearable light sensor"
+      ]
     },
     "datasheet_sensor_modality": {
       "type": "array",
@@ -44,57 +56,65 @@
           "other"
         ]
       },
-      "description": "One or more controlled modalities/categories used to apply modality-specific validation rules"
+      "description": "One or more controlled modalities/categories used to apply modality-specific validation rules",
+      "examples": [
+        [
+          "light"
+        ]
+      ]
     },
     "datasheet_sensor_modality_other": {
-      "type": [
-        "string",
-        "null"
-      ],
-      "description": "Free-text modality description when datasheet_sensor_modality contains other"
+      "type": "string",
+      "description": "Free-text modality description when datasheet_sensor_modality contains other",
+      "examples": [
+        "skin temperature"
+      ]
     },
     "datasheet_model": {
       "type": "string",
-      "description": "Model of the device or sensor"
+      "description": "Model of the device or sensor",
+      "examples": [
+        "Light Sensor LS-100"
+      ]
     },
     "datasheet_calibration_interval": {
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": "integer",
       "minimum": 0,
-      "description": "Recommended or required calibration interval in days, or null when not applicable"
+      "description": "Recommended or required calibration interval in days. Omit when not applicable.",
+      "examples": [
+        365
+      ]
     },
     "datasheet_calibration_method": {
-      "type": [
-        "string",
-        "null"
-      ],
-      "description": "General description of the calibration method, if applicable"
+      "type": "string",
+      "description": "General description of the calibration method, if applicable",
+      "examples": [
+        "Calibrated against a traceable reference photometer."
+      ]
     },
     "datasheet_calibration_accuracy": {
-      "type": [
-        "string",
-        "null"
-      ],
-      "description": "Accuracy, uncertainty, or tolerance information, if applicable"
+      "type": "string",
+      "description": "Accuracy, uncertainty, or tolerance information, if applicable",
+      "examples": [
+        "±5% under reference conditions"
+      ]
     },
     "datasheet_calibration_range": {
       "type": "string",
-      "description": "Light-sensor measurement or calibration range. Required when datasheet_sensor_modality is light."
+      "description": "Light-sensor measurement or calibration range. Required when datasheet_sensor_modality is light.",
+      "examples": [
+        "0.1–100000 lx"
+      ]
     },
     "datasheet_calibration_notes": {
-      "type": [
-        "string",
-        "null"
-      ],
-      "description": "Additional calibration notes"
+      "type": "string",
+      "description": "Additional calibration notes",
+      "examples": [
+        "Calibration applies at 23 °C."
+      ]
     },
     "datasheet_calibration_parameters": {
-      "type": [
-        "array",
-        "null"
-      ],
+      "type": "array",
       "description": "Generic calibration or sensor specification parameters. This supports non-light sensor metadata without hardcoding modality-specific fields.",
       "items": {
         "type": "object",
@@ -102,41 +122,55 @@
         "properties": {
           "parameter_name": {
             "type": "string",
-            "description": "Name of the calibration/specification parameter"
+            "description": "Name of the calibration/specification parameter",
+            "examples": [
+              "sampling interval"
+            ]
           },
           "parameter_value": {
             "type": [
               "string",
               "number",
-              "boolean",
-              "null"
+              "boolean"
             ],
-            "description": "Value of the parameter"
+            "description": "Value of the parameter",
+            "examples": [
+              30
+            ]
           },
           "parameter_unit": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Unit of the parameter value, if applicable"
+            "type": "string",
+            "description": "Unit of the parameter value, if applicable",
+            "examples": [
+              "s"
+            ]
           },
           "parameter_description": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Additional explanation of the parameter"
+            "type": "string",
+            "description": "Additional explanation of the parameter",
+            "examples": [
+              "Time between consecutive measurements."
+            ]
           }
         },
         "required": [
           "parameter_name",
           "parameter_value"
         ]
-      }
+      },
+      "examples": [
+        [
+          {
+            "parameter_name": "sampling interval",
+            "parameter_value": 30,
+            "parameter_unit": "s"
+          }
+        ]
+      ]
     },
     "datasheet_calibration_spectral_sensitivity": {
       "type": "array",
-      "description": "Light-sensor spectral sensitivity calibration. Required when datasheet_sensor_modality is light.",
+      "description": "Optional light-sensor spectral sensitivity calibration, when documented by the source.",
       "minItems": 1,
       "items": {
         "type": "object",
@@ -145,32 +179,49 @@
           "datasheet_calibration_spectral_sensitivity_wavelength": {
             "type": "number",
             "minimum": 0,
-            "description": "Wavelength (nm)"
+            "description": "Wavelength (nm)",
+            "examples": [
+              555
+            ]
           },
           "datasheet_calibration_spectral_sensitivity_relative": {
             "type": "number",
-            "description": "Relative spectral sensitivity at the given wavelength"
+            "description": "Relative spectral sensitivity at the given wavelength",
+            "examples": [
+              1.0
+            ]
           }
         },
         "required": [
           "datasheet_calibration_spectral_sensitivity_wavelength",
           "datasheet_calibration_spectral_sensitivity_relative"
         ]
-      }
+      },
+      "examples": [
+        [
+          {
+            "datasheet_calibration_spectral_sensitivity_wavelength": 555,
+            "datasheet_calibration_spectral_sensitivity_relative": 1.0
+          }
+        ]
+      ]
     },
     "datasheet_calibration_linearity": {
       "type": "string",
-      "description": "Linearity calibration information. Required when datasheet_sensor_modality is light."
+      "description": "Optional linearity calibration information, when documented by the source.",
+      "examples": [
+        "R² ≥ 0.99 across the documented measurement range."
+      ]
     },
     "datasheet_calibration_directional_response": {
       "type": "string",
-      "description": "Directional response calibration information. Required when datasheet_sensor_modality is light."
+      "description": "Optional directional-response calibration information, when documented by the source.",
+      "examples": [
+        "Cosine-response deviation below 10% up to 60° incidence."
+      ]
     },
     "datasheet_channel": {
-      "type": [
-        "array",
-        "null"
-      ],
+      "type": "array",
       "description": "Information on channels exported by the device or sensor",
       "items": {
         "type": "object",
@@ -179,32 +230,48 @@
           "datasheet_channel_nr": {
             "type": "integer",
             "minimum": 1,
-            "description": "Channel number"
+            "description": "Channel number",
+            "examples": [
+              1
+            ]
           },
           "datasheet_channel_name": {
             "type": "string",
-            "description": "Channel name as it appears in exported files"
+            "description": "Channel name as it appears in exported files",
+            "examples": [
+              "LIGHT"
+            ]
           },
           "datasheet_channel_unit": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Unit of channel"
+            "type": "string",
+            "description": "Unit of channel",
+            "examples": [
+              "lx"
+            ]
           },
           "datasheet_channel_description": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Description of channel"
+            "type": "string",
+            "description": "Description of channel",
+            "examples": [
+              "Photopic illuminance channel."
+            ]
           }
         },
         "required": [
           "datasheet_channel_nr",
           "datasheet_channel_name"
         ]
-      }
+      },
+      "examples": [
+        [
+          {
+            "datasheet_channel_nr": 1,
+            "datasheet_channel_name": "LIGHT",
+            "datasheet_channel_unit": "lx",
+            "datasheet_channel_description": "Photopic illuminance channel."
+          }
+        ]
+      ]
     }
   },
   "required": [
@@ -232,9 +299,6 @@
       },
       "then": {
         "required": [
-          "datasheet_calibration_spectral_sensitivity",
-          "datasheet_calibration_linearity",
-          "datasheet_calibration_directional_response",
           "datasheet_calibration_range"
         ]
       }
@@ -307,6 +371,7 @@
       }
     }
   ],
+  "$comment": "Missing-value convention: Optional properties with no value must be omitted rather than represented as null, an empty string, or an empty array.",
   "examples": [
     {
       "schema_version": "3.0.0",
@@ -351,7 +416,6 @@
         "accelerometer"
       ],
       "datasheet_model": "ACC-100",
-      "datasheet_calibration_interval": null,
       "datasheet_calibration_parameters": [
         {
           "parameter_name": "measurement_range",

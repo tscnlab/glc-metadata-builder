@@ -4,27 +4,61 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>GLC Metadata Builder</title>
-    <link rel="stylesheet" href="styles.css?v=20260715-template-fixes" />
+    <link rel="stylesheet" href="styles.css?v=20260725-glc-refresh-7" />
   </head>
   <body>
-    <main class="app-shell">
-      <header class="topbar">
-        <div class="brand-block">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="brand-block" href="https://globallightcommons.org" aria-label="Global Light Commons">
           <img class="brand-logo" src="assets/GLC_Logo.png" alt="Global Light Commons logo" />
-          <div>
-            <p class="eyebrow">Prepare a GLC datapackage</p>
-            <h1>Metadata Builder <span class="title-beta-badge">Beta</span></h1>
-          </div>
+        </a>
+        <span class="site-context">Metadata builder</span>
+        <nav class="builder-nav" aria-label="GLC resources">
+          <a href="https://tscnlab.github.io/glc-dp-viewer/">Overview</a>
+          <details class="nav-menu">
+            <summary>GLC Standard</summary>
+            <div class="nav-menu-items">
+              <a href="https://tscnlab.github.io/glc-dp-viewer/metadata/">Package profile</a>
+              <a href="https://tscnlab.github.io/glc-dp-viewer/data/">Resource schemas</a>
+              <a href="https://tscnlab.github.io/glc-dp-viewer/example/">Example package</a>
+            </div>
+          </details>
+          <a href="https://tscnlab.github.io/glc-dp-viewer/registry/">GLC Registry</a>
+          <details class="nav-menu active">
+            <summary>Tools</summary>
+            <div class="nav-menu-items">
+              <a href="./" aria-current="page">Metadata builder</a>
+              <a href="https://github.com/tscnlab/glc-metadata-validator#add-validation-to-a-metadata-repository">Validate a dataset</a>
+            </div>
+          </details>
+          <details class="nav-menu">
+            <summary>About</summary>
+            <div class="nav-menu-items nav-menu-right">
+              <a href="https://www.visualdiet.org/about">About GLC</a>
+              <a href="https://tscnlab.github.io/glc-dp-viewer/acknowledgements/">Acknowledgements</a>
+            </div>
+          </details>
+          <a href="https://github.com/tscnlab/glc-metadata-builder">GitHub</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="app-shell">
+      <section class="builder-heading">
+        <div>
+          <p class="eyebrow">Prepare a GLC data package</p>
+          <h1>Metadata Builder <span class="title-beta-badge">Beta</span></h1>
         </div>
         <a
+          id="active-schema-pill"
           class="schema-pill"
-          href="https://github.com/tscnlab/glee-metadata-validator/tree/main"
+          href="https://github.com/tscnlab/glc-metadata-validator/blob/main/schemas/3.0.0/glc-dp-profile.json"
           target="_blank"
           rel="noopener noreferrer"
         >
-          Schema 3.0.0 testing
+          Schema 3.0.0
         </a>
-      </header>
+      </section>
 
       <section class="workspace">
         <aside class="progress-panel" aria-label="Builder steps">
@@ -122,18 +156,28 @@
                       <h3>Generated files and package structure</h3>
                     </div>
                   </div>
-                  <p>A GLC metadata package keeps package-level metadata at the root and resource metadata in <code>data/</code>.</p>
+                  <p>
+                    The builder generates the package descriptor, resource
+                    metadata, versioned schemas, and a short README. Add the
+                    referenced data files at the paths declared in
+                    <code>data/datasets.json</code> before validation.
+                  </p>
                   <pre class="folder-tree" aria-label="Example GLC package structure">glc-metadata-package/
-  datapackage.json
-  data/
-    study.json
-    participants.csv
-    participant_characteristics.csv
-    devices.json
-    device_datasheet.json
-    datasets.json
-    datasets/
-      your-measurement-files.csv</pre>
+├── datapackage.json
+├── README.txt
+├── schemas/
+│   └── 3.0.0/
+│       ├── glc-dp-profile.json
+│       └── … resource schemas
+└── data/
+    ├── study.json
+    ├── participants.csv
+    ├── participant_characteristics.csv  (when provided)
+    ├── devices.json
+    ├── device_datasheet.json
+    ├── datasets.json
+    └── datasets/
+        └── your-measurement-files.csv    (add after export)</pre>
                   <div class="metadata-file-list">
                     <div><code>study.json</code><span>What was the study, who contributed, and which dataset records belong to it?</span></div>
                     <div><code>participants.csv</code><span>Who or what was measured?</span></div>
@@ -154,7 +198,7 @@
                     <a href="https://visualdiet.org" target="_blank" rel="noopener noreferrer">
                       Learn more about the Global Light Commons initiative
                     </a>
-                    <a href="https://tscnlab.github.io/glc_dp_viewer/" target="_blank" rel="noopener noreferrer">
+                    <a href="https://tscnlab.github.io/glc-dp-viewer/" target="_blank" rel="noopener noreferrer">
                       View human-readable details of the GLC datapackage structure
                     </a>
                   </div>
@@ -197,7 +241,7 @@
                   Package name
                   <input id="package-name" type="text" placeholder="Example: melidos-example-package" />
                 </label>
-                <label class="wide" id="preprocessing-description-field">
+                <label class="wide">
                   Package title
                   <input id="package-title" type="text" placeholder="Example: MeLiDos example GLC package" />
                 </label>
@@ -230,19 +274,19 @@
                   Study title <span class="required">*</span>
                   <input id="study-title" type="text" placeholder="Example: Light exposure in daily life" />
                 </label>
-                <label title="DOI of pre-registration document describing data collection. Type: string or null.">
+                <label title="Optional DOI, URL, or concise status note for study or analysis preregistration. Clearly distinguish analysis preregistration from preregistration of the study or data collection. Omit when unavailable. Type: string.">
                   Pre-registration
-                  <input id="study-preregistration" type="text" placeholder="Example: DOI or URL" />
+                  <input id="study-preregistration" type="text" placeholder="Example: DOI, URL, or concise preregistration status" />
                 </label>
-                <label title="Registry and ID of clinical trial registration. Type: string or null.">
+                <label title="Optional registry and ID of clinical trial registration. Omit when unavailable. Type: string.">
                   Registration
                   <input id="study-registration" type="text" placeholder="Example: ClinicalTrials.gov NCT..." />
                 </label>
-                <label title="Name of ethics committee and approval number. Type: string or null.">
+                <label title="Optional name of ethics committee and approval number. Omit when unavailable. Type: string.">
                   Ethics
                   <input id="study-ethics" type="text" placeholder="Example: Committee and approval number" />
                 </label>
-                <label title="Type of study. Type: string or null.">
+                <label title="Optional type of study. Omit when unavailable. Type: string.">
                   Study type
                   <input id="study-type" type="text" placeholder="Example: observational field study" />
                 </label>
@@ -262,15 +306,15 @@
                   Geographical location <span class="required">*</span>
                   <input id="study-geographical-location" type="text" placeholder="Example: Berlin, Germany" />
                 </label>
-                <label class="wide" title="Short description of the study intervention, if any. Type: string or null.">
+                <label class="wide" title="Optional short description of the study intervention, if any. Omit when unavailable or not applicable. Type: string.">
                   Intervention
                   <textarea id="study-intervention" rows="2" placeholder="Example: Light therapy protocol, or leave blank if not applicable"></textarea>
                 </label>
-                <label title="Funding sources supporting the project. Type: array of strings or null.">
+                <label title="Optional funding sources supporting the project. Omit when unavailable. Type: array of strings.">
                   Funding sources
                   <input id="study-funding-sources" type="text" placeholder="Comma-separated, e.g. Grant ABC123, Foundation XYZ" />
                 </label>
-                <label title="Key words describing the project. Type: array of strings or null.">
+                <label title="Optional key words describing the project. Omit when unavailable. Type: array of strings.">
                   Keywords
                   <input id="study-keywords" type="text" placeholder="Comma-separated, e.g. light, sleep, wearable" />
                 </label>
@@ -714,9 +758,14 @@
                     </label>
                   </div>
                 </fieldset>
+                <label class="wide">
+                  File-group description
+                  <span class="help-marker" title="Describe what the file group contains or represents when that information is not clear from its modality and other structured metadata. This may include its conceptual scope, how it differs from related file groups, or why an otherwise expected association is intentionally absent. Do not use this field for collection instructions, preprocessing steps, variable definitions, or repetition of structured metadata. Leave it empty when no additional explanation is needed.">?</span>
+                  <textarea id="file-description" name="file-description" rows="3" placeholder="Example: Participant-reported wear events concerning all study-worn devices collectively."></textarea>
+                </label>
                 <label id="file-device-id-field">
                   Device ID <span id="file-device-id-required" class="required">*</span>
-                  <span class="help-marker" title="Required for sensor and wear-log files. For questionnaires and diaries, link a device only when the instrument specifically concerns that device, not merely because it occurred during the same recording period.">?</span>
+                  <span class="help-marker" title="Required for sensor files. For questionnaires, diaries, and wear logs, link a device only when the complete file group unambiguously concerns one device. Leave it empty when the group concerns multiple devices collectively or device attribution is unknown.">?</span>
                   <select id="device-id" name="device-id" required></select>
                 </label>
                 <label id="file-device-location-field">
@@ -800,7 +849,7 @@
                     <option value="true">Yes</option>
                   </select>
                 </label>
-                <label class="wide">
+                <label class="wide" id="preprocessing-description-field">
                   Preprocessing description
                   <textarea id="preprocessing-desc" rows="2" placeholder="Required if preprocessing was applied"></textarea>
                 </label>
@@ -932,6 +981,9 @@
               <p class="field-help">
                 The zip includes generated metadata files and schemas. It does not include the original data files referenced by <code>datasets.json</code>.
               </p>
+              <p class="field-help">
+                Missing-value convention: optional properties with no value are omitted from exported JSON rather than written as <code>null</code>, an empty string, or an empty array.
+              </p>
               <div class="export-grid">
                 <button type="button" id="download-package-zip" class="zip-download">Download metadata package .zip</button>
                 <button type="button" id="download-builder-project" hidden>Download builder project</button>
@@ -961,8 +1013,45 @@
       </section>
     </main>
 
+    <footer class="glc-footer">
+      <div class="footer-inner">
+        <div class="footer-top">
+          <section class="footer-intro">
+            <a href="https://globallightcommons.org" aria-label="Global Light Commons">
+              <img src="assets/GLC_Logo.png" alt="Global Light Commons" />
+            </a>
+            <p>
+              The Global Light Commons initiative at the Technical University
+              of Munich studies how light affects health and well-being across
+              cultures and environments.
+            </p>
+          </section>
+          <section class="footer-links">
+            <h2>Quick links</h2>
+            <ul>
+              <li><a href="https://globallightcommons.org">Global Light Commons initiative</a></li>
+              <li><a href="https://tscnlab.github.io/glc-dp-viewer/registry/">GLC dataset registry</a></li>
+              <li><a href="https://tscnlab.github.io/LightLogR/">LightLogR</a></li>
+              <li><a href="https://tscnlab.github.io/glc-dp-viewer/">Data package documentation</a></li>
+            </ul>
+          </section>
+        </div>
+        <section class="footer-affiliation">
+          <img src="assets/tscn-unit-logo.png" alt="Translational Sensory and Circadian Neuroscience Unit" />
+          <p>
+            GLC is a research initiative by the Translational Sensory &amp;
+            Circadian Neuroscience Unit at Technical University of Munich.
+          </p>
+        </section>
+        <div class="footer-bottom">
+          <span>© 2026 GLC Research Initiative. All rights reserved.</span>
+          <a href="https://github.com/tscnlab/glc-metadata-builder/blob/main/LICENSE">MIT License</a>
+        </div>
+      </div>
+    </footer>
+
     <datalist id="timezone-options"></datalist>
     <script src="datetime-metadata.js"></script>
-    <script src="app.js?v=20260716-schema-testing-3"></script>
+    <script src="app.js?v=20260725-schema-pill"></script>
   </body>
 </html>

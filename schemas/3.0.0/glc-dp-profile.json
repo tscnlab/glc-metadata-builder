@@ -1,9 +1,9 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/<your-org-or-username>/<your-repo>/main/schemas/3.0.0/gleam-dp-profile.json",
-  "name": "gleam-dp-profile",
-  "title": "GLEAM Data Package Profile",
-  "description": "Frictionless profile for GLEAM data packages. Requires core resources and allows additional resources.",
+  "$id": "https://raw.githubusercontent.com/tscnlab/glc-metadata-validator/main/schemas/3.0.0/glc-dp-profile.json",
+  "name": "glc-dp-profile",
+  "title": "GLC Data Package Profile",
+  "description": "Frictionless profile for GLC data packages. Requires core resources and allows additional resources.",
   "version": "3.0.0",
   "type": "object",
   "allOf": [
@@ -21,7 +21,10 @@
         "schema_version": {
           "type": "string",
           "const": "3.0.0",
-          "description": "Release version of the GLEAM metadata standard used by this package."
+          "description": "Release version of the GLC metadata standard used by this package.",
+          "examples": [
+            "3.0.0"
+          ]
         },
         "profile": {
           "type": "string",
@@ -30,16 +33,19 @@
               "const": "data-package"
             },
             {
-              "pattern": "^schemas/3\\.0\\.0/gleam-dp-profile\\.json$"
+              "pattern": "^schemas/3\\.0\\.0/glc-dp-profile\\.json$"
             },
             {
-              "pattern": "^gleam-dp-profile\\.json$"
+              "pattern": "^glc-dp-profile\\.json$"
             },
             {
-              "pattern": "^(https?|file)://.*/gleam-dp-profile\\.json$"
+              "pattern": "^(https?|file)://.*/glc-dp-profile\\.json$"
             }
           ],
-          "description": "Path/URL to the package profile, or the canonical 'data-package' alias."
+          "description": "Path/URL to the package profile, or the canonical 'data-package' alias.",
+          "examples": [
+            "https://globallightcommons.org/schemas/3.0.0/glc-dp-profile.json"
+          ]
         },
         "resources": {
           "type": "array",
@@ -66,11 +72,17 @@
                       "device_datasheets",
                       "participant_characteristics"
                     ],
-                    "description": "Canonical resource name recognized by the GLEAM profile. Some canonical resources are required; others are optional."
+                    "description": "Canonical resource name recognized by the GLC profile. Some canonical resources are required; others are optional.",
+                    "examples": [
+                      "study"
+                    ]
                   },
                   "path": {
                     "type": "string",
-                    "description": "Path to the resource file (or folder), relative to the datapackage.json."
+                    "description": "Path to the resource file (or folder), relative to the datapackage.json.",
+                    "examples": [
+                      "data/study.json"
+                    ]
                   },
                   "profile": {
                     "type": "string",
@@ -87,31 +99,27 @@
                     ]
                   },
                   "format": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
+                    "type": "string"
                   },
                   "mediatype": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
+                    "type": "string"
                   },
                   "schema": {
                     "type": [
                       "string",
-                      "object",
-                      "null"
+                      "object"
                     ],
-                    "description": "Table Schema \u2014 for tabular resources only."
+                    "description": "Table Schema — for tabular resources only.",
+                    "examples": [
+                      "schemas/3.0.0/participants.schema.json"
+                    ]
                   },
                   "jsonSchema": {
-                    "type": [
-                      "string",
-                      "null"
-                    ],
-                    "description": "JSON Schema \u2014 for non-tabular resources only."
+                    "type": "string",
+                    "description": "JSON Schema — for non-tabular resources only.",
+                    "examples": [
+                      "schemas/3.0.0/study.schema.json"
+                    ]
                   }
                 },
                 "allOf": [
@@ -119,14 +127,7 @@
                     "if": {
                       "properties": {
                         "profile": {
-                          "anyOf": [
-                            {
-                              "const": "tabular-data-resource"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
+                          "const": "tabular-data-resource"
                         }
                       }
                     },
@@ -155,9 +156,6 @@
                             },
                             {
                               "pattern": "^(https?|file)://.*/json-entity-resource\\.json$"
-                            },
-                            {
-                              "type": "null"
                             }
                           ]
                         }
@@ -188,7 +186,10 @@
                 "properties": {
                   "name": {
                     "type": "string",
-                    "description": "Name of an additional, non-core resource."
+                    "description": "Name of an additional, non-core resource.",
+                    "examples": [
+                      "study"
+                    ]
                   },
                   "path": {
                     "type": "string"
@@ -208,29 +209,19 @@
                     ]
                   },
                   "format": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
+                    "type": "string"
                   },
                   "mediatype": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
+                    "type": "string"
                   },
                   "schema": {
                     "type": [
                       "string",
-                      "object",
-                      "null"
+                      "object"
                     ]
                   },
                   "jsonSchema": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
+                    "type": "string"
                   }
                 },
                 "allOf": [
@@ -257,14 +248,7 @@
                     "if": {
                       "properties": {
                         "profile": {
-                          "anyOf": [
-                            {
-                              "const": "tabular-data-resource"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
+                          "const": "tabular-data-resource"
                         }
                       }
                     },
@@ -293,9 +277,6 @@
                             },
                             {
                               "pattern": "^(https?|file)://.*/json-entity-resource\\.json$"
-                            },
-                            {
-                              "type": "null"
                             }
                           ]
                         }
@@ -322,14 +303,7 @@
               "contains": {
                 "properties": {
                   "name": {
-                    "anyOf": [
-                      {
-                        "const": "study"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
+                    "const": "study"
                   }
                 }
               }
@@ -338,14 +312,7 @@
               "contains": {
                 "properties": {
                   "name": {
-                    "anyOf": [
-                      {
-                        "const": "participants"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
+                    "const": "participants"
                   }
                 }
               }
@@ -354,14 +321,7 @@
               "contains": {
                 "properties": {
                   "name": {
-                    "anyOf": [
-                      {
-                        "const": "datasets"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
+                    "const": "datasets"
                   }
                 }
               }
@@ -370,14 +330,7 @@
               "contains": {
                 "properties": {
                   "name": {
-                    "anyOf": [
-                      {
-                        "const": "devices"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
+                    "const": "devices"
                   }
                 }
               }
@@ -386,18 +339,20 @@
               "contains": {
                 "properties": {
                   "name": {
-                    "anyOf": [
-                      {
-                        "const": "device_datasheets"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
+                    "const": "device_datasheets"
                   }
                 }
               }
             }
+          ],
+          "examples": [
+            [
+              {
+                "name": "study",
+                "path": "data/study.json",
+                "jsonSchema": "schemas/3.0.0/study.schema.json"
+              }
+            ]
           ]
         }
       }

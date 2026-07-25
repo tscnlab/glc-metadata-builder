@@ -43,9 +43,7 @@
       dataset_file_datetime_source: "collection",
       dataset_file_datetime_date: "2026-07-13",
       dataset_file_datetime_dateformat: "YYYY-MM-DD",
-      dataset_file_datetime_time: null,
-      dataset_file_datetime_timeformat: null,
-    }, "Collection datetime export should clear column-only fields.");
+    }, "Collection datetime export should omit column-only fields.");
 
     const importedGroup = api.applyFileDatetimeToGroup({}, collectionMetadata);
     assertEqual(importedGroup, {

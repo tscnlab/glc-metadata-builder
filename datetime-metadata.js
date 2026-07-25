@@ -28,19 +28,18 @@
 
   function buildFileDatetimeFromGroup(group, suggestedDateColumn = "") {
     const source = group.datetimeSource || "";
-    return {
+    const metadata = {
       dataset_file_datetime_source: source,
       dataset_file_datetime_date: source === "collection"
         ? group.collectionDatetime || ""
         : group.datetimeDate || suggestedDateColumn,
       dataset_file_datetime_dateformat: group.datetimeDateformat || "",
-      dataset_file_datetime_time: source === "collection" ? null : group.datetimeTime || null,
-      dataset_file_datetime_timeformat: source === "collection"
-        ? null
-        : group.datetimeTime
-          ? group.datetimeTimeformat || null
-          : null,
     };
+    if (source === "column" && group.datetimeTime) {
+      metadata.dataset_file_datetime_time = group.datetimeTime;
+      metadata.dataset_file_datetime_timeformat = group.datetimeTimeformat || "";
+    }
+    return metadata;
   }
 
   return {
