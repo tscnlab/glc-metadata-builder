@@ -220,6 +220,8 @@ const importPackageFolderButton = document.querySelector("#import-package-folder
 const packageFolderImportFile = document.querySelector("#package-folder-import-file");
 const packageFolderImportSummary = document.querySelector("#package-folder-import-summary");
 const removePackageFolderImportButton = document.querySelector("#remove-package-folder-import");
+const builderProjectImport = document.querySelector("#builder-project-import");
+const builderProjectImportStatus = document.querySelector("#builder-project-import-status");
 const sectionValidationPanels = {
   study: document.querySelector("#study-validation-panel"),
   participants: document.querySelector("#participants-validation-panel"),
@@ -331,6 +333,30 @@ const fields = {
   preprocessingDesc: document.querySelector("#preprocessing-desc"),
 };
 
+const DRAFT_STORAGE_KEY = "glc-metadata-builder:draft:v2";
+const PROJECT_FIELD_KEYS = [
+  "schemaVersion",
+  "packageName",
+  "packageTitle",
+  "studyInternalId",
+  "studyTitle",
+  "studyPreregistration",
+  "studyRegistration",
+  "studyType",
+  "studyShortDescription",
+  "studySample",
+  "studySetting",
+  "studyGeographicalLocation",
+  "studyEthics",
+  "studyIntervention",
+  "studyFundingSources",
+  "studyKeywords",
+];
+let autosaveReady = false;
+let autosaveTimer = null;
+let draftDirtySinceBackup = false;
+let restoringDraft = false;
+
 fileInput.addEventListener("change", handleFileSelection);
 studyImport.addEventListener("change", () => handleMetadataFileSelection(studyImport, studyImportFile, studyImportSummary, "study file", "Import selected study file"));
 importStudyButton.addEventListener("click", () => {
@@ -440,6 +466,7 @@ document.querySelector("#clear-datasheets-page").addEventListener("click", clear
 document.querySelector("#remove-dataset-import").addEventListener("click", () => clearDatasetPage("Imported dataset file removed. Add data manually or import another datasets.json file."));
 document.querySelector("#clear-dataset-page").addEventListener("click", () => clearDatasetPage());
 packageFolderImport.addEventListener("change", handlePackageFolderSelection);
+builderProjectImport.addEventListener("change", importBuilderProjectFile);
 importPackageFolderButton.addEventListener("click", () => {
   const files = Array.from(packageFolderImport.files || []);
   if (files.length === 0) {
@@ -451,7 +478,8 @@ importPackageFolderButton.addEventListener("click", () => {
 });
 removePackageFolderImportButton.addEventListener("click", clearPackageFolderImport);
 document.querySelector("#download-package-zip").addEventListener("click", downloadPackageZip);
-document.querySelector("#download-builder-project").addEventListener("click", () => downloadText("glc-builder-project.json", JSON.stringify(buildBuilderProject(), null, 2), "application/json"));
+document.querySelector("#download-builder-project").addEventListener("click", downloadBuilderProjectBackup);
+document.querySelector("#download-builder-project-header").addEventListener("click", downloadBuilderProjectBackup);
 document.querySelector("#download-datapackage").addEventListener("click", () => downloadText("datapackage.json", JSON.stringify(buildDataPackage(), null, 2), "application/json"));
 document.querySelector("#download-study").addEventListener("click", () => downloadText("study.json", JSON.stringify(buildStudyDraft(), null, 2), "application/json"));
 document.querySelector("#download-participants").addEventListener("click", () => downloadText("participants.csv", buildParticipantsCsv(), "text/csv"));
@@ -891,12 +919,18 @@ function clearStudyPage() {
 function syncActiveSchemaPill(schemaVersion = fields.schemaVersion.value || "2.0.0") {
   const pill = document.querySelector("#active-schema-pill");
   if (!pill) return;
+  const isCurrentSchema = schemaVersion === "3.0.0";
   const profileFilename = schemaVersion === "3.0.0"
     ? "glc-dp-profile.json"
     : "gleam-dp-profile.json";
   pill.textContent = `Schema ${schemaVersion}`;
   pill.href = `https://github.com/tscnlab/glc-metadata-validator/blob/main/schemas/${schemaVersion}/${profileFilename}`;
   pill.setAttribute("aria-label", `View GLC schema ${schemaVersion}`);
+  pill.classList.toggle("schema-pill-current", isCurrentSchema);
+  pill.classList.toggle("schema-pill-legacy", !isCurrentSchema);
+  pill.title = isCurrentSchema
+    ? `Current GLC schema version: ${schemaVersion}`
+    : `Legacy GLC schema version: ${schemaVersion}`;
 }
 
 async function loadSchemaHelp(schemaVersion = fields.schemaVersion.value || "2.0.0") {
@@ -4571,6 +4605,11 @@ function updatePreview() {
   jsonPreview.textContent = JSON.stringify(payload, null, 2);
   schedulePreviewHeightSync();
   updatePackageSummary();
+  const headerDraftButton = document.querySelector("#download-builder-project-header");
+  if (headerDraftButton) {
+    headerDraftButton.hidden = state.activeStep === "start" || !builderHasMeaningfulContent();
+  }
+  scheduleDraftAutosave();
 }
 
 function syncWorkspaceMode() {
@@ -4766,7 +4805,6 @@ function fileGroupHasUserContent(group) {
     group.deviceId,
     group.deviceLocation,
     group.deviceLocationType,
-    group.temporalResolutionType,
     group.samplingInterval,
     group.temporalResolutionUnit,
     group.instructions,
@@ -5428,15 +5466,7 @@ async function importPackageFolder(files) {
 
     if (found.builderProject) {
       const project = JSON.parse(await found.builderProject.text());
-      if (project.builder_project_version !== "1.0.0"
-        || !Array.isArray(project.dataset_templates)
-        || !Array.isArray(project.datasets)) {
-        throw new Error("The builder project file has an unsupported or invalid structure.");
-      }
-      state.datasetTemplates = project.dataset_templates;
-      state.datasets = project.datasets;
-      state.activeDatasetIndex = 0;
-      state.activeGroupIndex = 0;
+      restoreBuilderProject(project);
       imported.push("glc-builder-project.json");
     } else {
       state.datasetTemplates = [];
@@ -5458,6 +5488,7 @@ async function importPackageFolder(files) {
     updatePreview();
 
     showImportFile(packageFolderImportFile, getFolderSelectionName(files));
+    removePackageFolderImportButton.hidden = false;
     packageFolderImportSummary.textContent = [
       `Imported ${imported.length} metadata file(s): ${imported.join(", ")}.`,
       missing.length ? `Missing: ${missing.join(", ")}.` : "",
@@ -5504,6 +5535,7 @@ function clearPackageFolderImport() {
   state.fileGroups = state.datasets[0].fileGroups;
 
   packageFolderImport.value = "";
+  removePackageFolderImportButton.hidden = true;
   hideImportFile(packageFolderImportFile);
   packageFolderImportSummary.textContent = "Imported metadata folder removed. Start a new package manually or import another metadata folder.";
   packageFolderImportSummary.className = "import-summary";
@@ -5618,12 +5650,235 @@ async function downloadPackageZip() {
 function buildBuilderProject() {
   if (state.activeStep === "datasets") syncActiveDatasetFromControls();
   return {
-    builder_project_version: "1.0.0",
+    builder_project_version: "2.0.0",
+    saved_at: new Date().toISOString(),
     schema_version: fields.schemaVersion.value || "2.0.0",
+    form_values: Object.fromEntries(PROJECT_FIELD_KEYS.map((key) => [key, fields[key]?.value || ""])),
+    active_step: state.activeStep,
+    active_dataset_index: state.activeDatasetIndex,
+    active_group_index: state.activeGroupIndex,
+    study_groups: cloneJson(state.studyGroups),
+    contributors: cloneJson(state.contributors),
+    participants: cloneJson(state.participants),
+    characteristics: cloneJson(state.characteristics),
+    devices: cloneJson(state.devices),
+    datasheets: cloneJson(state.datasheets),
+    datasheet_imported_files: cloneJson(state.datasheetImportedFiles),
     dataset_templates: cloneJson(state.datasetTemplates),
     datasets: cloneJson(state.datasets),
   };
 }
+
+function restoreBuilderProject(project) {
+  if (!project || !["1.0.0", "2.0.0"].includes(project.builder_project_version)) {
+    throw new Error("The builder project file has an unsupported or invalid structure.");
+  }
+  if (!Array.isArray(project.datasets) || !Array.isArray(project.dataset_templates)) {
+    throw new Error("The builder project file is missing dataset state.");
+  }
+
+  restoringDraft = true;
+  const values = project.form_values || {};
+  PROJECT_FIELD_KEYS.forEach((key) => {
+    if (fields[key] && Object.hasOwn(values, key)) fields[key].value = values[key] ?? "";
+  });
+  fields.schemaVersion.value = project.schema_version || values.schemaVersion || "3.0.0";
+
+  state.studyGroups = cloneJson(project.study_groups || []);
+  state.contributors = cloneJson(project.contributors || []);
+  state.participants = cloneJson(project.participants || [createParticipant()]);
+  state.characteristics = cloneJson(project.characteristics || []);
+  state.devices = cloneJson(project.devices || [createDevice()]);
+  state.datasheets = cloneJson(project.datasheets || [createDatasheet()]);
+  state.datasheetImportedFiles = cloneJson(project.datasheet_imported_files || []);
+  state.datasetTemplates = cloneJson(project.dataset_templates);
+  state.datasets = cloneJson(project.datasets.length ? project.datasets : [createDatasetRecord()]);
+  state.activeDatasetIndex = Math.min(Number(project.active_dataset_index) || 0, state.datasets.length - 1);
+  state.activeGroupIndex = Number(project.active_group_index) || 0;
+  state.fileGroups = state.datasets[state.activeDatasetIndex]?.fileGroups || [createFileGroup()];
+  state.activeGroupIndex = Math.min(state.activeGroupIndex, Math.max(0, state.fileGroups.length - 1));
+  state.activeStep = project.active_step || "project";
+
+  renderAllMetadataSections();
+  syncControlsFromActiveDataset();
+  updateCrossrefOptions();
+  loadSchemaHelp(fields.schemaVersion.value);
+  setStep(state.activeStep);
+  restoringDraft = false;
+  updatePreview();
+}
+
+function downloadBuilderProjectBackup() {
+  downloadText("glc-builder-project.json", JSON.stringify(buildBuilderProject(), null, 2), "application/json");
+  draftDirtySinceBackup = false;
+}
+
+async function importBuilderProjectFile(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    const project = JSON.parse(await file.text());
+    restoreBuilderProject(project);
+    autosaveReady = true;
+    localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(buildBuilderProject()));
+    draftDirtySinceBackup = false;
+    builderProjectImportStatus.textContent = `Resumed builder draft from ${file.name}.`;
+  } catch (error) {
+    builderProjectImportStatus.textContent = `Could not restore project backup: ${error.message}`;
+  } finally {
+    builderProjectImport.value = "";
+  }
+}
+
+function builderHasMeaningfulContent() {
+  if (PROJECT_FIELD_KEYS.some((key) => key !== "schemaVersion" && String(fields[key]?.value || "").trim())) return true;
+  if (state.studyGroups.length || state.contributors.length || state.characteristics.length) return true;
+  if (state.participants.some((row) => Object.values(row).some((value) => String(value || "").trim()))) return true;
+  if (state.devices.some((row) => Object.values(row).some((value) => String(value || "").trim()))) return true;
+  if (state.datasheets.some((row) => Object.values(row).some((value) => Array.isArray(value) ? value.length : String(value || "").trim()))) return true;
+  return state.datasets.some(datasetHasUserContent);
+}
+
+function projectSnapshotHasMeaningfulContent(project) {
+  const values = project?.form_values || {};
+  if (PROJECT_FIELD_KEYS.some((key) => key !== "schemaVersion" && String(values[key] || "").trim())) return true;
+  const rowHasValue = (row) => row && Object.values(row).some((value) => (
+    Array.isArray(value) ? value.length > 0 : String(value || "").trim() !== ""
+  ));
+  if ((project.study_groups || []).some(rowHasValue)) return true;
+  if ((project.contributors || []).some(rowHasValue)) return true;
+  if ((project.participants || []).some(rowHasValue)) return true;
+  if ((project.characteristics || []).some(rowHasValue)) return true;
+  if ((project.devices || []).some(rowHasValue)) return true;
+  if ((project.datasheets || []).some(rowHasValue)) return true;
+
+  return (project.datasets || []).some((dataset) => {
+    const datasetFields = [
+      dataset.datasetId,
+      dataset.studyId,
+      dataset.participantId,
+      dataset.deviceId,
+      dataset.deviceLocation,
+      dataset.samplingInterval,
+      dataset.datasetTimezone,
+      dataset.latitude,
+      dataset.longitude,
+      dataset.instructions,
+      dataset.templateId,
+    ];
+    if (datasetFields.some((value) => String(value || "").trim())) return true;
+    return (dataset.fileGroups || []).some((group) => {
+      if ((group.files || []).length || (group.columns || []).length || (group.modalities || []).length) return true;
+      if (Object.keys(group.variableState || {}).length) return true;
+      if ((group.terms || []).some((entry) => entry.term && entry.term !== "other")) return true;
+      return [
+        group.modalityOther,
+        group.instrumentType,
+        group.instrumentName,
+        group.collectionMethod,
+        group.softwareName,
+        group.collectionMethodOther,
+        group.recordedBy,
+        group.recordedByOther,
+        group.description,
+        group.deviceId,
+        group.deviceLocation,
+        group.samplingInterval,
+        group.temporalResolutionUnit,
+        group.instructions,
+        group.collectionDatetime,
+        group.datetimeDate,
+        group.datetimeDateformat,
+        group.datetimeTime,
+        group.datetimeTimeformat,
+        group.preprocessingDesc,
+      ].some((value) => String(value || "").trim());
+    });
+  });
+}
+
+function scheduleDraftAutosave() {
+  if (!autosaveReady || restoringDraft) return;
+  draftDirtySinceBackup = builderHasMeaningfulContent();
+  clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(saveDraftToBrowser, 350);
+}
+
+function saveDraftToBrowser() {
+  if (!builderHasMeaningfulContent()) {
+    localStorage.removeItem(DRAFT_STORAGE_KEY);
+    draftDirtySinceBackup = false;
+    return;
+  }
+  try {
+    localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(buildBuilderProject()));
+  } catch (error) {
+    console.warn("Could not autosave the GLC builder draft.", error);
+  }
+}
+
+function readBrowserDraft() {
+  try {
+    const serialized = localStorage.getItem(DRAFT_STORAGE_KEY);
+    return serialized ? JSON.parse(serialized) : null;
+  } catch (error) {
+    console.warn("Could not read the saved GLC builder draft.", error);
+    return null;
+  }
+}
+
+function initializeDraftPersistence() {
+  const status = document.querySelector("#local-draft-status");
+  const message = document.querySelector("#local-draft-status-message");
+  const savedDraft = readBrowserDraft();
+  if (!savedDraft || !projectSnapshotHasMeaningfulContent(savedDraft)) {
+    localStorage.removeItem(DRAFT_STORAGE_KEY);
+    autosaveReady = true;
+    return;
+  }
+
+  try {
+    restoreBuilderProject(savedDraft);
+    autosaveReady = true;
+    draftDirtySinceBackup = false;
+    status.hidden = false;
+    if (savedDraft.saved_at) {
+      const savedAt = new Date(savedDraft.saved_at);
+      if (!Number.isNaN(savedAt.valueOf())) {
+        message.textContent = `Browser-saved draft restored from ${savedAt.toLocaleString()}.`;
+      }
+    }
+  } catch (error) {
+    localStorage.removeItem(DRAFT_STORAGE_KEY);
+    autosaveReady = true;
+    console.warn("Could not restore the browser-saved GLC draft.", error);
+  }
+
+  document.querySelector("#start-new-package").addEventListener("click", () => {
+    localStorage.removeItem(DRAFT_STORAGE_KEY);
+    autosaveReady = false;
+    clearPackageFolderImport();
+    setStep("start");
+    autosaveReady = true;
+    draftDirtySinceBackup = false;
+    status.hidden = true;
+  });
+}
+
+document.addEventListener("click", (event) => {
+  const link = event.target.closest("a[href]");
+  if (!link || link.getAttribute("aria-current") === "page") return;
+  if (!draftDirtySinceBackup || !builderHasMeaningfulContent()) return;
+  saveDraftToBrowser();
+  const shouldLeave = window.confirm(
+    "Your current draft has been autosaved in this browser. Leave the metadata builder?"
+  );
+  if (!shouldLeave) {
+    event.preventDefault();
+    return;
+  }
+  draftDirtySinceBackup = false;
+});
 
 async function buildPackageZipFiles() {
   const schemaVersion = fields.schemaVersion.value || "2.0.0";
@@ -5661,6 +5916,10 @@ async function buildPackageZipFiles() {
         "It does not include the original data files selected in the dataset file assistant.",
         "Before running the full validator, add referenced data files under the paths declared in data/datasets.json.",
       ].join("\n"),
+    },
+    {
+      path: "glc-builder-project.json",
+      text: JSON.stringify(buildBuilderProject(), null, 2),
     },
   ];
 
@@ -5840,9 +6099,15 @@ renderVariables();
 updateCrossrefOptions();
 updatePreview();
 loadSchemaHelp();
+initializeDraftPersistence();
 
 if (window.ResizeObserver && builderPanel) {
   new ResizeObserver(schedulePreviewHeightSync).observe(builderPanel);
 }
 
 window.addEventListener("resize", schedulePreviewHeightSync);
+window.addEventListener("beforeunload", (event) => {
+  if (!draftDirtySinceBackup || !builderHasMeaningfulContent()) return;
+  event.preventDefault();
+  event.returnValue = "";
+});

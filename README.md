@@ -80,7 +80,13 @@ Additional supporting resources, such as scripts, README files, raw-data folders
 - Concise variable labels with an optional description field for full questionnaire prompts, source wording, instructions, and interpretation
 - Schema 3.0.0 variable units are required for `numeric` and `integer` variables and omitted for `string`, `boolean`, and `factor` variables. The builder suggests common UCUM codes while permitting a precise custom unit; placeholder values such as `N/A` and `Unknown` are rejected.
 - Soft validation panel on the Export page
+- Browser-local draft autosave with resume and start-over controls
+- Downloadable and re-importable builder drafts (`glc-builder-project.json`)
 - Individual metadata downloads and zip export
+
+Autosave remains on the current device in the browser's local storage. Saved
+builder drafts preserve metadata entries, detected headers, and selected file names,
+but do not contain or retain browser access to the original measurement files.
 
 ## Dataset model
 

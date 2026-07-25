@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>GLC Metadata Builder</title>
-    <link rel="stylesheet" href="styles.css?v=20260725-glc-refresh-7" />
+    <link rel="stylesheet" href="styles.css?v=20260726-route-headings" />
   </head>
   <body>
     <header class="topbar">
@@ -49,17 +49,21 @@
           <p class="eyebrow">Prepare a GLC data package</p>
           <h1>Metadata Builder <span class="title-beta-badge">Beta</span></h1>
         </div>
-        <a
-          id="active-schema-pill"
-          class="schema-pill"
-          href="https://github.com/tscnlab/glc-metadata-validator/blob/main/schemas/3.0.0/glc-dp-profile.json"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Schema 3.0.0
-        </a>
+        <div class="builder-heading-actions">
+          <button type="button" id="download-builder-project-header" class="secondary-button small-button" hidden>
+            Save builder draft (.json)
+          </button>
+          <a
+            id="active-schema-pill"
+            class="schema-pill schema-pill-current"
+            href="https://github.com/tscnlab/glc-metadata-validator/blob/main/schemas/3.0.0/glc-dp-profile.json"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Schema 3.0.0
+          </a>
+        </div>
       </section>
-
       <section class="workspace">
         <aside class="progress-panel" aria-label="Builder steps">
           <ol>
@@ -88,6 +92,7 @@
                   </p>
                   <p class="privacy-note">
                     Note: Files you select while building the metadata package stay on your computer. They are processed locally in your browser and are not uploaded, transmitted, or stored by this site.
+                    Draft metadata are autosaved only in this browser on this device; selected measurement-file contents are not stored.
                   </p>
                   <div class="actions start-actions">
                     <button type="button" data-next-step="project">Get started</button>
@@ -214,20 +219,13 @@
                   <p>Choose the release version and package-level settings.</p>
                 </div>
               </div>
-              <div class="subsection-heading prominent-subsection">
-                <h3>Already have metadata?</h3>
-                <p>Import an existing package folder to review or continue editing it here.</p>
+              <div id="local-draft-status" class="local-draft-status" hidden>
+                <span id="local-draft-status-message">Your browser-saved draft was restored.</span>
+                <button type="button" id="start-new-package" class="secondary-button small-button">Start a new package</button>
               </div>
-              <div class="file-drop compact-upload package-folder-upload">
-                <input id="package-folder-import" type="file" webkitdirectory directory multiple />
-                <p id="package-folder-import-file" class="import-file-label" hidden></p>
-                <p id="package-folder-import-summary">
-                  The builder looks for <code>datapackage.json</code>, <code>study.json</code>,
-                  <code>participants.csv</code>, <code>participant_characteristics.csv</code>, <code>devices.json</code>,
-                  <code>device_datasheet.json</code> (or <code>device_datasheets.json</code>), and <code>datasets.json</code> at the folder root or inside <code>data/</code>.
-                </p>
-                <button type="button" class="small-button primary-import-button" id="import-package-folder-button">Import selected metadata folder</button>
-                <button type="button" class="secondary-button small-button" id="remove-package-folder-import">Remove imported metadata folder</button>
+              <div class="subsection-heading new-package-heading">
+                <h3>Start a new package</h3>
+                <p>Choose a schema version and enter the new package’s name and title.</p>
               </div>
               <div class="grid">
                 <label>
@@ -245,6 +243,34 @@
                   Package title
                   <input id="package-title" type="text" placeholder="Example: MeLiDos example GLC package" />
                 </label>
+              </div>
+              <div class="subsection-heading existing-work-heading">
+                <h3>Continue existing work</h3>
+                <p>Choose the option that matches what you previously saved.</p>
+              </div>
+              <div class="existing-work-options">
+                <section class="existing-work-option">
+                  <h4>Open an existing GLC package</h4>
+                  <p>Select a package folder containing separate GLC metadata files.</p>
+                  <div class="file-drop compact-upload package-folder-upload">
+                    <input id="package-folder-import" type="file" webkitdirectory directory multiple />
+                    <p id="package-folder-import-file" class="import-file-label" hidden></p>
+                    <p id="package-folder-import-summary">
+                      Looks for <code>datapackage.json</code> and the metadata resources at the folder root or inside <code>data/</code>.
+                    </p>
+                    <button type="button" class="small-button primary-import-button" id="import-package-folder-button">Open selected package folder</button>
+                    <button type="button" class="secondary-button small-button" id="remove-package-folder-import" hidden>Remove imported package</button>
+                  </div>
+                </section>
+                <section class="existing-work-option">
+                  <h4>Resume a builder draft</h4>
+                  <p>Select the single <code>glc-builder-project.json</code> file previously saved by this builder.</p>
+                  <label class="project-backup-import">
+                    Saved builder draft (.json)
+                  <input id="builder-project-import" type="file" accept=".json,application/json" />
+                  </label>
+                  <p id="builder-project-import-status" class="field-help"></p>
+                </section>
               </div>
               <div class="actions inline-actions">
                 <button type="button" data-next-step="study">Next: Study</button>
@@ -984,9 +1010,12 @@
               <p class="field-help">
                 Missing-value convention: optional properties with no value are omitted from exported JSON rather than written as <code>null</code>, an empty string, or an empty array.
               </p>
+              <p class="field-help">
+                The editable project backup preserves form entries, detected headers, and selected file names, but browsers do not allow it to retain access to the original measurement files.
+              </p>
               <div class="export-grid">
                 <button type="button" id="download-package-zip" class="zip-download">Download metadata package .zip</button>
-                <button type="button" id="download-builder-project" hidden>Download builder project</button>
+                <button type="button" id="download-builder-project">Save builder draft (.json)</button>
                 <button type="button" id="download-datapackage">Download datapackage.json</button>
                 <button type="button" id="download-study">Download study.json</button>
                 <button type="button" id="download-participants">Download participants.csv</button>
@@ -1052,6 +1081,6 @@
 
     <datalist id="timezone-options"></datalist>
     <script src="datetime-metadata.js"></script>
-    <script src="app.js?v=20260725-schema-pill"></script>
+    <script src="app.js?v=20260726-schema-pill-colors"></script>
   </body>
 </html>
