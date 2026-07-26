@@ -24,8 +24,7 @@
     {
       "name": "participant_characteristic_unit",
       "type": "string",
-      "description": "Unit of the characteristic value",
-      "example": "1"
+      "description": "Optional unit of the characteristic value. Leave blank for unitless scores or categorical values."
     },
     {
       "name": "participant_characteristic_description",

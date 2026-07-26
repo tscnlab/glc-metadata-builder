@@ -229,7 +229,6 @@ const sectionValidationPanels = {
   datasets: document.querySelector("#datasets-validation-panel"),
 };
 const downloadButton = document.querySelector("#download-json");
-const copyButton = document.querySelector("#copy-json");
 const addTermButton = document.querySelector("#add-term");
 const addDatasetRecordButton = document.querySelector("#add-dataset-record");
 const addFileGroupButton = document.querySelector("#add-file-group");
@@ -430,7 +429,6 @@ importDatasetButton.addEventListener("click", () => {
 });
 clearContributorsImportButton.addEventListener("click", clearContributorsImport);
 downloadButton.addEventListener("click", () => downloadText("datasets.json", JSON.stringify(buildDatasetDraft(), null, 2), "application/json"));
-copyButton.addEventListener("click", copyPreview);
 addTermButton.addEventListener("click", addTerm);
 addDatasetRecordButton.addEventListener("click", addDatasetRecord);
 addFileGroupButton.addEventListener("click", addFileGroup);
@@ -480,6 +478,7 @@ removePackageFolderImportButton.addEventListener("click", clearPackageFolderImpo
 document.querySelector("#download-package-zip").addEventListener("click", downloadPackageZip);
 document.querySelector("#download-builder-project").addEventListener("click", downloadBuilderProjectBackup);
 document.querySelector("#download-builder-project-header").addEventListener("click", downloadBuilderProjectBackup);
+document.querySelector("#start-over-header").addEventListener("click", startOver);
 document.querySelector("#download-datapackage").addEventListener("click", () => downloadText("datapackage.json", JSON.stringify(buildDataPackage(), null, 2), "application/json"));
 document.querySelector("#download-study").addEventListener("click", () => downloadText("study.json", JSON.stringify(buildStudyDraft(), null, 2), "application/json"));
 document.querySelector("#download-participants").addEventListener("click", () => downloadText("participants.csv", buildParticipantsCsv(), "text/csv"));
@@ -508,6 +507,18 @@ document.querySelectorAll("[data-prev-step]").forEach((button) => {
 });
 document.querySelectorAll("[data-step-link]").forEach((item) => {
   item.addEventListener("click", () => setStep(item.dataset.stepLink));
+});
+document.querySelectorAll("[data-subsection-target]").forEach((button) => {
+  button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    setStep(button.dataset.subsectionStep);
+    requestAnimationFrame(() => {
+      document.querySelector(`#${button.dataset.subsectionTarget}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  });
 });
 
 document.addEventListener("click", handleHelpMarkerClick);
@@ -838,6 +849,13 @@ function getDatasheetIds() {
   return state.datasheets.map((entry) => entry.id).filter(Boolean);
 }
 
+function getSeparateSensorDatasheetIds() {
+  const wholeDeviceDatasheetIds = new Set(
+    state.devices.map((entry) => entry.datasheetId).filter(Boolean)
+  );
+  return getDatasheetIds().filter((id) => !wholeDeviceDatasheetIds.has(id));
+}
+
 function updateCrossrefOptions() {
   setSelectOptions(fields.studyId, Array.from(new Set([getStudyId(), fields.studyId.value].filter(Boolean))), "Add study ID first");
   setSelectOptions(fields.participantId, Array.from(new Set([...getParticipantIds(), fields.participantId.value].filter(Boolean))), "Add participant first");
@@ -945,7 +963,15 @@ async function loadSchemaHelp(schemaVersion = fields.schemaVersion.value || "2.0
       fetch(`schemas/${schemaVersion}/device_datasheet.schema.json`).then((response) => response.json()),
       fetch(`schemas/${schemaVersion}/dataset.schema.json`).then((response) => response.json()),
     ]);
-    state.entitySchemas = { study: studySchema, device: deviceSchema, datasheet: datasheetSchema, dataset: datasetSchema };
+    state.entitySchemas = {
+      study: studySchema,
+      contributor: contributorSchema,
+      participants: participantsSchema,
+      characteristics: characteristicsSchema,
+      device: deviceSchema,
+      datasheet: datasheetSchema,
+      dataset: datasetSchema,
+    };
 
     applySchemaHelp(studySchema, {
       "study-internal-id": "study_internal_id",
@@ -1514,7 +1540,7 @@ function renderStudyGroups() {
           <input value="${escapeHtml(group.description)}" data-field="description" placeholder="Optional group description" title="${escapeHtml(descriptionHelp)}" />
         </label>
         <label title="${escapeHtml(sizeHelp)}">Size ${helpMarker(sizeHelp)}
-          <input value="${escapeHtml(group.size)}" data-field="size" type="number" min="0" placeholder="25" title="${escapeHtml(sizeHelp)}" />
+          <input value="${escapeHtml(group.size)}" data-field="size" type="number" min="0" step="1" placeholder="25" title="${escapeHtml(sizeHelp)}" />
         </label>
         <label title="${escapeHtml(inclusionHelp)}">Inclusion criteria ${helpMarker(inclusionHelp)}
           <input value="${escapeHtml(group.inclusion)}" data-field="inclusion" placeholder="18+; healthy adults" title="${escapeHtml(inclusionHelp)}" />
@@ -1599,6 +1625,10 @@ function refreshStudyGroupsForDatasetOptions() {
 
 function renderContributors() {
   contributorsList.innerHTML = "";
+  const contributorRequired = new Set(state.entitySchemas.contributor?.required || []);
+  const institutionRequired = new Set(
+    state.entitySchemas.contributor?.properties?.contributor_institution?.required || []
+  );
   state.contributors.forEach((contributor, index) => {
     const row = document.createElement("div");
     row.className = "contributor-card";
@@ -1610,6 +1640,14 @@ function renderContributors() {
     const institutionNameHelp = schemaHelpTitle(help.institutionName, "Institution name");
     const institutionCityHelp = schemaHelpTitle(help.institutionCity, "Institution city");
     const institutionCountryHelp = schemaHelpTitle(help.institutionCountry, "Institution country");
+    const institutionStarted = hasAnyValue([
+      contributor.institutionName,
+      contributor.institutionCity,
+      contributor.institutionCountry,
+    ]);
+    const orcidRequired = contributorRequired.has("contributor_orcid");
+    const institutionNameRequired = institutionStarted && institutionRequired.has("contributor_institution_name");
+    const institutionCountryRequired = institutionStarted && institutionRequired.has("contributor_institution_country");
     row.innerHTML = `
       <div class="record-card-heading">
         <h3>Contributor ${index + 1}</h3>
@@ -1623,18 +1661,18 @@ function renderContributors() {
           <input value="${escapeHtml(contributor.roles)}" data-field="roles" placeholder="author; data collector" title="${escapeHtml(rolesHelp)}" />
         </label>
         <label title="${escapeHtml(emailHelp)}">Email ${helpMarker(emailHelp)}
-          <input value="${escapeHtml(contributor.email)}" data-field="email" placeholder="jane@example.org" title="${escapeHtml(emailHelp)}" />
+          <input value="${escapeHtml(contributor.email)}" data-field="email" type="email" placeholder="jane@example.org" title="${escapeHtml(emailHelp)}" />
         </label>
-        <label title="${escapeHtml(orcidHelp)}">ORCID ${helpMarker(orcidHelp)}
-          <input value="${escapeHtml(contributor.orcid)}" data-field="orcid" placeholder="0000-0000-0000-0000" title="${escapeHtml(orcidHelp)}" />
+        <label title="${escapeHtml(orcidHelp)}">ORCID ${orcidRequired ? '<span class="required">*</span>' : ""} ${helpMarker(orcidHelp)}
+          <input value="${escapeHtml(contributor.orcid)}" data-field="orcid" placeholder="0000-0000-0000-0000" title="${escapeHtml(orcidHelp)}" ${orcidRequired ? "required" : ""} />
         </label>
-        <label title="${escapeHtml(institutionNameHelp)}">Institution name ${helpMarker(institutionNameHelp)}
+        <label title="${escapeHtml(institutionNameHelp)}">Institution name ${institutionNameRequired ? '<span class="required">*</span>' : ""} ${helpMarker(institutionNameHelp)}
           <input value="${escapeHtml(contributor.institutionName)}" data-field="institutionName" placeholder="Example University" title="${escapeHtml(institutionNameHelp)}" />
         </label>
         <label title="${escapeHtml(institutionCityHelp)}">Institution city ${helpMarker(institutionCityHelp)}
           <input value="${escapeHtml(contributor.institutionCity)}" data-field="institutionCity" placeholder="Berlin" title="${escapeHtml(institutionCityHelp)}" />
         </label>
-        <label title="${escapeHtml(institutionCountryHelp)}">Institution country ${helpMarker(institutionCountryHelp)}
+        <label title="${escapeHtml(institutionCountryHelp)}">Institution country ${institutionCountryRequired ? '<span class="required">*</span>' : ""} ${helpMarker(institutionCountryHelp)}
           <input value="${escapeHtml(contributor.institutionCountry)}" data-field="institutionCountry" placeholder="Germany" title="${escapeHtml(institutionCountryHelp)}" />
         </label>
       </div>
@@ -1642,6 +1680,13 @@ function renderContributors() {
     row.querySelectorAll("input").forEach((input) => {
       input.addEventListener("input", () => {
         contributor[input.dataset.field] = input.value.trim();
+        updatePreview();
+      });
+      input.addEventListener("change", () => {
+        contributor[input.dataset.field] = input.value.trim();
+        if (input.dataset.field?.startsWith("institution")) {
+          renderContributors();
+        }
         updatePreview();
       });
     });
@@ -2390,6 +2435,9 @@ function normalizeStatusMessage(message, fallback) {
 
 function renderParticipants() {
   participantsList.innerHTML = "";
+  const participantFields = new Map(
+    (state.entitySchemas.participants?.fields || []).map((field) => [field.name, field])
+  );
   state.participants.forEach((participant, index) => {
     const row = document.createElement("div");
     row.className = "participant-card";
@@ -2398,17 +2446,19 @@ function renderParticipants() {
     const ageHelp = schemaHelpTitle(help.participant_age, "Age of the participant");
     const sexHelp = schemaHelpTitle(help.participant_sex, "Sex of participant");
     const genderHelp = schemaHelpTitle(help.participant_gender, "Gender of participant");
+    const idRequired = participantFields.get("participant_internal_id")?.constraints?.required === true;
+    const ageRequired = participantFields.get("participant_age")?.constraints?.required === true;
     row.innerHTML = `
       <div class="record-card-heading">
         <h3>Participant ${index + 1}</h3>
         <button type="button" class="remove-row" ${state.participants.length === 1 ? "disabled" : ""}>Remove participant</button>
       </div>
       <div class="participant-fields">
-        <label title="${escapeHtml(idHelp)}">Participant ID <span class="required">*</span> ${helpMarker(idHelp)}
+        <label title="${escapeHtml(idHelp)}">Participant ID ${idRequired ? '<span class="required">*</span>' : ""} ${helpMarker(idHelp)}
           <input value="${escapeHtml(participant.id)}" data-field="id" placeholder="P001" title="${escapeHtml(idHelp)}" />
         </label>
-        <label title="${escapeHtml(ageHelp)}">Age <span class="required">*</span> ${helpMarker(ageHelp)}
-          <input value="${escapeHtml(participant.age)}" data-field="age" type="number" min="0" max="120" placeholder="35" title="${escapeHtml(ageHelp)}" />
+        <label title="${escapeHtml(ageHelp)}">Age ${ageRequired ? '<span class="required">*</span>' : ""} ${helpMarker(ageHelp)}
+          <input value="${escapeHtml(participant.age)}" data-field="age" type="number" min="0" max="120" step="1" placeholder="35" title="${escapeHtml(ageHelp)}" />
         </label>
         <label title="${escapeHtml(sexHelp)}">Sex ${helpMarker(sexHelp)}
           <input value="${escapeHtml(participant.sex)}" data-field="sex" placeholder="female" title="${escapeHtml(sexHelp)}" />
@@ -2446,6 +2496,9 @@ function addParticipant() {
 
 function renderCharacteristics() {
   characteristicsList.innerHTML = "";
+  const characteristicPrimaryKey = new Set(
+    normalizeStringArray(state.entitySchemas.characteristics?.primaryKey)
+  );
   state.characteristics.forEach((characteristic, index) => {
     const row = document.createElement("div");
     row.className = "participant-card";
@@ -2453,7 +2506,10 @@ function renderCharacteristics() {
     const participantHelp = schemaHelpTitle(help.participant_internal_id, "Linked participant ID");
     const nameHelp = schemaHelpTitle(help.participant_characteristic_name, "Name of the participant characteristic");
     const valueHelp = schemaHelpTitle(help.participant_characteristic_value, "Value of the participant characteristic");
-    const unitHelp = schemaHelpTitle(help.participant_characteristic_unit, "Unit of the characteristic value");
+    const unitHelp = schemaHelpTitle(
+      help.participant_characteristic_unit,
+      "Optional unit of the characteristic value. Leave blank for unitless scores or categorical values."
+    );
     const descriptionHelp = schemaHelpTitle(help.participant_characteristic_description, "Additional notes or description");
     row.innerHTML = `
       <div class="record-card-heading">
@@ -2461,17 +2517,17 @@ function renderCharacteristics() {
         <button type="button" class="remove-row">Remove characteristic</button>
       </div>
       <div class="participant-fields">
-        <label title="${escapeHtml(participantHelp)}">Participant ${helpMarker(participantHelp)}
+        <label title="${escapeHtml(participantHelp)}">Participant ${characteristicPrimaryKey.has("participant_internal_id") ? '<span class="required">*</span>' : ""} ${helpMarker(participantHelp)}
           <select class="participant-select" data-field="participantId" title="${escapeHtml(participantHelp)}"></select>
         </label>
-        <label title="${escapeHtml(nameHelp)}">Name ${helpMarker(nameHelp)}
+        <label title="${escapeHtml(nameHelp)}">Name ${characteristicPrimaryKey.has("participant_characteristic_name") ? '<span class="required">*</span>' : ""} ${helpMarker(nameHelp)}
           <input value="${escapeHtml(characteristic.name)}" data-field="name" placeholder="chronotype" title="${escapeHtml(nameHelp)}" />
         </label>
         <label title="${escapeHtml(valueHelp)}">Value ${helpMarker(valueHelp)}
           <input value="${escapeHtml(characteristic.value)}" data-field="value" placeholder="intermediate" title="${escapeHtml(valueHelp)}" />
         </label>
         <label title="${escapeHtml(unitHelp)}">Unit ${helpMarker(unitHelp)}
-          <input value="${escapeHtml(characteristic.unit)}" data-field="unit" placeholder="score" title="${escapeHtml(unitHelp)}" />
+          <input value="${escapeHtml(characteristic.unit)}" data-field="unit" placeholder="Optional" title="${escapeHtml(unitHelp)}" />
         </label>
         <label class="wide" title="${escapeHtml(descriptionHelp)}">Description ${helpMarker(descriptionHelp)}
           <input value="${escapeHtml(characteristic.description)}" data-field="description" placeholder="Optional notes" title="${escapeHtml(descriptionHelp)}" />
@@ -2518,7 +2574,7 @@ function renderDevices() {
     const manufacturerHelp = schemaHelpTitle(help.device_manufacturer, "Manufacturer of the device");
     const modelHelp = schemaHelpTitle(help.device_model, "Model name or number of the device");
     const serialNumberHelp = schemaHelpTitle(help.device_serial_number, "Serial number assigned to the individual device");
-    const calibrationDateHelp = schemaHelpTitle(help.device_calibration_date, "Optional date of last calibration. Leave blank to omit it when unknown or not applicable.");
+    const calibrationDateHelp = schemaHelpTitle(help.device_calibration_date, "Required date of the device's most recent applicable calibration (YYYY-MM-DD).");
     const firmwareHelp = schemaHelpTitle(help.device_firmware_version, "Firmware version installed on the device");
     const datasheetHelp = schemaHelpTitle(help.device_datasheet_id, "Reference to the general device datasheet. This can be completed in the datasheet section.");
     const sensorTypeHelp = schemaHelpTitle(sensorHelp.device_sensor_type, "Sensor type, e.g. photopic light sensor");
@@ -2542,15 +2598,15 @@ function renderDevices() {
         <label title="${escapeHtml(serialNumberHelp)}">Serial number <span class="required">*</span> ${helpMarker(serialNumberHelp)}
           <input data-field="serialNumber" value="${escapeHtml(device.serialNumber)}" placeholder="SN123" title="${escapeHtml(serialNumberHelp)}" />
         </label>
-        <label title="${escapeHtml(calibrationDateHelp)}">Calibration date ${helpMarker(calibrationDateHelp)}
-          <input data-field="calibrationDate" value="${escapeHtml(device.calibrationDate)}" placeholder="Optional: YYYY-MM-DD" title="${escapeHtml(calibrationDateHelp)}" />
+        <label title="${escapeHtml(calibrationDateHelp)}">Calibration date <span class="required">*</span> ${helpMarker(calibrationDateHelp)}
+          <input data-field="calibrationDate" type="date" value="${escapeHtml(device.calibrationDate)}" title="${escapeHtml(calibrationDateHelp)}" required />
         </label>
         <label title="${escapeHtml(firmwareHelp)}">Firmware version ${helpMarker(firmwareHelp)}
           <input data-field="firmwareVersion" value="${escapeHtml(device.firmwareVersion)}" placeholder="v1.2.3" title="${escapeHtml(firmwareHelp)}" />
         </label>
         <label class="wide" title="${escapeHtml(datasheetHelp)}">Datasheet ID <span class="required">*</span> ${helpMarker(datasheetHelp)}
           <select class="datasheet-select" data-field="datasheetId" title="${escapeHtml(datasheetHelp)}"></select>
-          <span class="field-help">If the datasheet has not been created yet, leave this blank or keep an imported pending ID and complete the datasheet section below.</span>
+          <span class="field-help">Required before export. The selected ID must match a device-datasheet record completed below.</span>
         </label>
         <div class="wide nested-editor" title="${escapeHtml(sensorsHelp)}">
           <div class="nested-editor-heading">
@@ -2563,7 +2619,7 @@ function renderDevices() {
             <span></span>
           </div>
           <div class="device-sensors-list"></div>
-          <span class="field-help">Sensor type is required. Sensor datasheet ID is optional and can be completed after datasheet records are added.</span>
+          <span class="field-help">Sensors are optional. For each sensor you add, sensor type is required. Add a sensor datasheet ID only when that component has its own separate datasheet.</span>
         </div>
       </div>
     `;
@@ -2622,7 +2678,11 @@ function setupDeviceSensorEditor(card, device, sensorTypeHelp, sensorDatasheetHe
         <button type="button" class="remove-row small-button">Remove</button>
       `;
       const datasheetSelect = wrapper.querySelector("select");
-      setSelectOptions(datasheetSelect, Array.from(new Set([...getDatasheetIds(), row.datasheetId].filter(Boolean))), "Optional datasheet");
+      setSelectOptions(
+        datasheetSelect,
+        Array.from(new Set([...getSeparateSensorDatasheetIds(), row.datasheetId].filter(Boolean))),
+        "No separate sensor datasheet"
+      );
       datasheetSelect.value = row.datasheetId;
       wrapper.querySelectorAll("input, select").forEach((input) => {
         input.addEventListener("input", () => {
@@ -2665,7 +2725,7 @@ function parseDeviceSensorRows(text) {
       const [type, datasheetId] = line.split("|").map((part) => part.trim());
       return { type: type || "", datasheetId: datasheetId || "" };
     });
-  return rows.length ? rows : [{ type: "", datasheetId: "" }];
+  return rows;
 }
 
 function deviceSensorRowsToText(rows) {
@@ -2678,6 +2738,7 @@ function deviceSensorRowsToText(rows) {
 function renderDatasheets() {
   datasheetsList.innerHTML = "";
   const schema3 = String(fields.schemaVersion.value || "2.0.0").startsWith("3.");
+  const datasheetRequired = new Set(state.entitySchemas.datasheet?.required || []);
   const modalityOptions = ["light", "accelerometer", "temperature", "other"];
   state.datasheets.forEach((datasheet, index) => {
     const card = document.createElement("div");
@@ -2692,7 +2753,7 @@ function renderDatasheets() {
     const modalityHelp = schemaHelpTitle(help.datasheet_sensor_modality, "Select every modality measured or represented by this device or sensor");
     const modalityOtherHelp = schemaHelpTitle(help.datasheet_sensor_modality_other, "Name modalities that are not available in the controlled list");
     const modelHelp = schemaHelpTitle(help.datasheet_model, "Model of the sensor or device");
-    const intervalHelp = schemaHelpTitle(help.datasheet_calibration_interval, "Required device calibration interval in days");
+    const intervalHelp = schemaHelpTitle(help.datasheet_calibration_interval, schema3 ? "Optional device calibration interval in days" : "Required device calibration interval in days");
     const spectralHelpText = `${schemaHelpTitle(help.datasheet_calibration_spectral_sensitivity, "Spectral sensitivity calibration values")} Use one wavelength,relative pair per line.`;
     const wavelengthHelp = schemaHelpTitle(spectralHelp.datasheet_calibration_spectral_sensitivity_wavelength, "Wavelength in nm");
     const relativeHelp = schemaHelpTitle(spectralHelp.datasheet_calibration_spectral_sensitivity_relative, "Relative spectral sensitivity");
@@ -2740,12 +2801,12 @@ function renderDatasheets() {
         <label title="${escapeHtml(modelHelp)}">Model <span class="required">*</span> ${helpMarker(modelHelp)}
           <input data-field="model" value="${escapeHtml(datasheet.model)}" placeholder="LT-100" title="${escapeHtml(modelHelp)}" />
         </label>
-        <label title="${escapeHtml(intervalHelp)}">Calibration interval, days <span class="required">*</span> ${helpMarker(intervalHelp)}
-          <input data-field="calibrationInterval" type="number" min="0" value="${escapeHtml(datasheet.calibrationInterval)}" placeholder="365" title="${escapeHtml(intervalHelp)}" />
+        <label title="${escapeHtml(intervalHelp)}">Calibration interval, days ${datasheetRequired.has("datasheet_calibration_interval") ? '<span class="required">*</span>' : ""} ${helpMarker(intervalHelp)}
+          <input data-field="calibrationInterval" type="number" min="0" step="1" value="${escapeHtml(datasheet.calibrationInterval)}" placeholder="365" title="${escapeHtml(intervalHelp)}" />
         </label>
         <div class="wide nested-editor" title="${escapeHtml(spectralHelpText)}"${schema3 && !includesLight ? " hidden" : ""}>
           <div class="nested-editor-heading">
-            <span>Spectral sensitivity <span class="required">*</span> ${helpMarker(spectralHelpText)}</span>
+            <span>Spectral sensitivity ${datasheetRequired.has("datasheet_calibration_spectral_sensitivity") ? '<span class="required">*</span>' : ""} ${helpMarker(spectralHelpText)}</span>
             <button type="button" class="secondary-button small-button add-spectral-row">Add wavelength row</button>
           </div>
           <div class="nested-grid nested-grid-two nested-grid-header" aria-hidden="true">
@@ -2756,10 +2817,10 @@ function renderDatasheets() {
           <div class="datasheet-spectral-list"></div>
           <span class="field-help">Add one row for each wavelength and its relative sensitivity value.</span>
         </div>
-        <label title="${escapeHtml(linearityHelp)}"${schema3 && !includesLight ? " hidden" : ""}>Linearity <span class="required">*</span> ${helpMarker(linearityHelp)}
+        <label title="${escapeHtml(linearityHelp)}"${schema3 && !includesLight ? " hidden" : ""}>Linearity ${datasheetRequired.has("datasheet_calibration_linearity") ? '<span class="required">*</span>' : ""} ${helpMarker(linearityHelp)}
           <input data-field="linearity" value="${escapeHtml(datasheet.linearity)}" placeholder="Example: +/-2%" title="${escapeHtml(linearityHelp)}" />
         </label>
-        <label title="${escapeHtml(directionalHelp)}"${schema3 && !includesLight ? " hidden" : ""}>Directional response <span class="required">*</span> ${helpMarker(directionalHelp)}
+        <label title="${escapeHtml(directionalHelp)}"${schema3 && !includesLight ? " hidden" : ""}>Directional response ${datasheetRequired.has("datasheet_calibration_directional_response") ? '<span class="required">*</span>' : ""} ${helpMarker(directionalHelp)}
           <input data-field="directionalResponse" value="${escapeHtml(datasheet.directionalResponse)}" placeholder="Example: cosine corrected" title="${escapeHtml(directionalHelp)}" />
         </label>
         <label title="${escapeHtml(rangeHelp)}"${schema3 && !includesLight ? " hidden" : ""}>Calibration range <span class="required">*</span> ${helpMarker(rangeHelp)}
@@ -2771,7 +2832,7 @@ function renderDatasheets() {
         </label>` : ""}
         <div class="wide nested-editor" title="${escapeHtml(channelsHelp)}">
           <div class="nested-editor-heading">
-            <span>Channels ${helpMarker(channelsHelp)}</span>
+            <span>Channels ${datasheetRequired.has("datasheet_channel") ? '<span class="required">*</span>' : ""} ${helpMarker(channelsHelp)}</span>
             <button type="button" class="secondary-button small-button add-channel-row">Add channel</button>
           </div>
           <div class="nested-grid nested-grid-four nested-grid-header" aria-hidden="true">
@@ -2782,12 +2843,26 @@ function renderDatasheets() {
             <span></span>
           </div>
           <div class="datasheet-channels-list"></div>
-          <span class="field-help">Channel number and channel name are required. Unit and description are optional.</span>
+          <span class="field-help">${datasheetRequired.has("datasheet_channel") ? "At least one channel is required. " : "Channels are optional. "}For each channel you add, channel number and channel name are required; unit and description are optional.</span>
         </div>
       </div>
     `;
-    setupDatasheetSpectralEditor(card, datasheet, wavelengthHelp, relativeHelp);
-    setupDatasheetChannelEditor(card, datasheet, channelNrHelp, channelNameHelp, channelUnitHelp, channelDescriptionHelp);
+    setupDatasheetSpectralEditor(
+      card,
+      datasheet,
+      wavelengthHelp,
+      relativeHelp,
+      datasheetRequired.has("datasheet_calibration_spectral_sensitivity"),
+    );
+    setupDatasheetChannelEditor(
+      card,
+      datasheet,
+      channelNrHelp,
+      channelNameHelp,
+      channelUnitHelp,
+      channelDescriptionHelp,
+      datasheetRequired.has("datasheet_channel"),
+    );
     card.querySelectorAll("input[data-field], textarea[data-field]").forEach((input) => {
       input.addEventListener("input", () => {
         datasheet[input.dataset.field] = input.value.trim();
@@ -2822,10 +2897,13 @@ function addDatasheet() {
   updatePreview();
 }
 
-function setupDatasheetSpectralEditor(card, datasheet, wavelengthHelp, relativeHelp) {
+function setupDatasheetSpectralEditor(card, datasheet, wavelengthHelp, relativeHelp, required) {
   const list = card.querySelector(".datasheet-spectral-list");
   const addButton = card.querySelector(".add-spectral-row");
   let rows = parseDatasheetSpectralRows(datasheet.spectralSensitivityText);
+  if (required && rows.length === 0) {
+    rows = [{ wavelength: "", relative: "" }];
+  }
 
   const renderRows = () => {
     list.innerHTML = "";
@@ -2882,7 +2960,7 @@ function parseDatasheetSpectralRows(text) {
         relative: relative || "",
       };
     });
-  return rows.length ? rows : [{ wavelength: "", relative: "" }];
+  return rows;
 }
 
 function datasheetSpectralRowsToText(rows) {
@@ -2892,10 +2970,13 @@ function datasheetSpectralRowsToText(rows) {
     .join("\n");
 }
 
-function setupDatasheetChannelEditor(card, datasheet, channelNrHelp, channelNameHelp, channelUnitHelp, channelDescriptionHelp) {
+function setupDatasheetChannelEditor(card, datasheet, channelNrHelp, channelNameHelp, channelUnitHelp, channelDescriptionHelp, required) {
   const list = card.querySelector(".datasheet-channels-list");
   const addButton = card.querySelector(".add-channel-row");
   let rows = parseDatasheetChannelRows(datasheet.channelsText);
+  if (required && rows.length === 0) {
+    rows = [{ nr: "", name: "", unit: "", description: "" }];
+  }
 
   const renderRows = () => {
     list.innerHTML = "";
@@ -2905,7 +2986,7 @@ function setupDatasheetChannelEditor(card, datasheet, channelNrHelp, channelName
       wrapper.innerHTML = `
         <label title="${escapeHtml(channelNrHelp)}">
           <span class="sr-only">Channel number</span>
-          <input data-channel-field="nr" type="number" min="1" value="${escapeHtml(row.nr)}" placeholder="1" title="${escapeHtml(channelNrHelp)}" />
+          <input data-channel-field="nr" type="number" min="1" step="1" value="${escapeHtml(row.nr)}" placeholder="1" title="${escapeHtml(channelNrHelp)}" />
         </label>
         <label title="${escapeHtml(channelNameHelp)}">
           <span class="sr-only">Channel name</span>
@@ -2962,7 +3043,7 @@ function parseDatasheetChannelRows(text) {
         description: description || "",
       };
     });
-  return rows.length ? rows : [{ nr: "", name: "", unit: "", description: "" }];
+  return rows;
 }
 
 function datasheetChannelRowsToText(rows) {
@@ -3707,11 +3788,22 @@ function syncFileRoleDataStateControls() {
 }
 
 function syncTemporalResolutionControls() {
-  const isFixedInterval = fields.temporalResolutionType?.value === "fixed_interval";
+  const schema3 = (fields.schemaVersion.value || "2.0.0") === "3.0.0";
+  if (!schema3 && fields.temporalResolutionType?.value !== "fixed_interval") {
+    fields.temporalResolutionType.value = "fixed_interval";
+  }
+  const eventBasedOption = fields.temporalResolutionType?.querySelector('option[value="event_based"]');
+  if (eventBasedOption) {
+    eventBasedOption.disabled = !schema3;
+    eventBasedOption.hidden = !schema3;
+  }
+  const isFixedInterval = !schema3 || fields.temporalResolutionType?.value === "fixed_interval";
   fields.samplingInterval.disabled = !isFixedInterval;
   fields.temporalResolutionUnit.disabled = !isFixedInterval;
   fields.samplingInterval.required = isFixedInterval;
   fields.temporalResolutionUnit.required = isFixedInterval;
+  document.querySelector("#temporal-resolution-value-required").hidden = !isFixedInterval;
+  document.querySelector("#temporal-resolution-unit-required").hidden = !isFixedInterval;
 }
 
 function renderTerms() {
@@ -4287,7 +4379,15 @@ function buildStudyGroups() {
 
 function buildContributors() {
   const contributors = state.contributors
-    .filter((entry) => entry.fullName || entry.orcid || entry.email || entry.institutionName)
+    .filter((entry) => hasAnyValue([
+      entry.fullName,
+      entry.roles,
+      entry.email,
+      entry.orcid,
+      entry.institutionName,
+      entry.institutionCity,
+      entry.institutionCountry,
+    ]))
     .map((entry) => {
       const contributor = {
         contributor_full_name: entry.fullName,
@@ -4343,7 +4443,7 @@ function buildDevicesDraft({ includeEmpty = false } = {}) {
       device_manufacturer: entry.manufacturer,
       device_model: entry.model,
       device_serial_number: entry.serialNumber,
-      device_calibration_date: entry.calibrationDate || null,
+      device_calibration_date: entry.calibrationDate,
       device_firmware_version: entry.firmwareVersion || null,
       device_datasheet_id: entry.datasheetId,
       device_sensors: parseDeviceSensors(entry.sensorsText),
@@ -4606,8 +4706,13 @@ function updatePreview() {
   schedulePreviewHeightSync();
   updatePackageSummary();
   const headerDraftButton = document.querySelector("#download-builder-project-header");
+  const headerStartOverButton = document.querySelector("#start-over-header");
+  const showDraftActions = state.activeStep !== "start" && builderHasMeaningfulContent();
   if (headerDraftButton) {
-    headerDraftButton.hidden = state.activeStep === "start" || !builderHasMeaningfulContent();
+    headerDraftButton.hidden = !showDraftActions;
+  }
+  if (headerStartOverButton) {
+    headerStartOverButton.hidden = !showDraftActions;
   }
   scheduleDraftAutosave();
 }
@@ -4740,6 +4845,21 @@ function validationIssue(section, message) {
 
 function isBlank(value) {
   return value === null || value === undefined || String(value).trim() === "";
+}
+
+function schemaPattern(property) {
+  if (!property || typeof property !== "object") return "";
+  if (property.pattern) return property.pattern;
+  for (const alternative of [...(property.oneOf || []), ...(property.anyOf || [])]) {
+    const pattern = schemaPattern(alternative);
+    if (pattern) return pattern;
+  }
+  return "";
+}
+
+function matchesSchemaPattern(value, property) {
+  const pattern = schemaPattern(property);
+  return !pattern || new RegExp(pattern).test(String(value || ""));
 }
 
 function hasAnyValue(values) {
@@ -4912,6 +5032,10 @@ function timeZoneIssueMessage(label, value) {
 
 function validateStudyForExport() {
   const issues = [];
+  const contributorRequired = new Set(state.entitySchemas.contributor?.required || []);
+  const institutionRequired = new Set(
+    state.entitySchemas.contributor?.properties?.contributor_institution?.required || []
+  );
   if (!studyHasUserContent()) {
     return [validationIssue("Study", "Study resource is missing. Complete the Study page.")];
   }
@@ -4937,8 +5061,14 @@ function validateStudyForExport() {
     .forEach((group, index) => {
       const label = group.name || `study group ${index + 1}`;
       const selectedDatasetIds = normalizeStringArray(group.datasets);
+      if (isBlank(group.name)) {
+        issues.push(validationIssue("Study", `Study group ${label}: group name is required.`));
+      }
       if (selectedDatasetIds.length === 0) {
         issues.push(validationIssue("Study", `Study group ${label}: at least one linked dataset is required.`));
+      }
+      if (!isBlank(group.size) && (!Number.isInteger(Number(group.size)) || Number(group.size) < 0)) {
+        issues.push(validationIssue("Study", `Study group ${label}: size must be a non-negative integer.`));
       }
       selectedDatasetIds
         .filter((datasetId) => !datasetIdSet.has(datasetId))
@@ -4957,11 +5087,50 @@ function validateStudyForExport() {
         }
       });
     });
+  state.contributors
+    .filter((entry) => hasAnyValue([
+      entry.fullName,
+      entry.roles,
+      entry.email,
+      entry.orcid,
+      entry.institutionName,
+      entry.institutionCity,
+      entry.institutionCountry,
+    ]))
+    .forEach((contributor, index) => {
+      const label = contributor.fullName || `row ${index + 1}`;
+      if (contributorRequired.has("contributor_full_name") && isBlank(contributor.fullName)) {
+        issues.push(validationIssue("Study", `Contributor ${label}: full name is missing.`));
+      }
+      if (contributorRequired.has("contributor_orcid") && isBlank(contributor.orcid)) {
+        issues.push(validationIssue("Study", `Contributor ${label}: ORCID is missing.`));
+      }
+      if (!isBlank(contributor.email) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contributor.email)) {
+        issues.push(validationIssue("Study", `Contributor ${label}: email address is not valid.`));
+      }
+      const institutionStarted = hasAnyValue([
+        contributor.institutionName,
+        contributor.institutionCity,
+        contributor.institutionCountry,
+      ]);
+      if (institutionStarted
+        && institutionRequired.has("contributor_institution_name")
+        && isBlank(contributor.institutionName)) {
+        issues.push(validationIssue("Study", `Contributor ${label}: institution name is missing.`));
+      }
+      if (institutionStarted
+        && institutionRequired.has("contributor_institution_country")
+        && isBlank(contributor.institutionCountry)) {
+        issues.push(validationIssue("Study", `Contributor ${label}: institution country is missing.`));
+      }
+    });
   return issues;
 }
 
 function validateParticipantsForExport() {
   const issues = [];
+  const participantIds = new Set();
+  const characteristicKeys = new Set();
   const participants = state.participants.filter((entry) => hasAnyValue([entry.id, entry.age, entry.sex, entry.gender]));
 
   if (participants.length === 0) {
@@ -4975,14 +5144,55 @@ function validateParticipantsForExport() {
     }
     if (isBlank(participant.age)) {
       issues.push(validationIssue("Participants", `Participant ${label}: age is missing.`));
+    } else if (!Number.isInteger(Number(participant.age)) || Number(participant.age) < 0 || Number(participant.age) > 120) {
+      issues.push(validationIssue("Participants", `Participant ${label}: age must be an integer from 0 to 120.`));
+    }
+    if (!isBlank(participant.id)) {
+      if (participantIds.has(participant.id)) {
+        issues.push(validationIssue("Participants", `Participant ${label}: participant ID is duplicated.`));
+      }
+      participantIds.add(participant.id);
     }
   });
+
+  state.characteristics
+    .filter((entry) => hasAnyValue([
+      entry.participantId,
+      entry.name,
+      entry.value,
+      entry.unit,
+      entry.description,
+    ]))
+    .forEach((characteristic, index) => {
+      const label = characteristic.name || `row ${index + 1}`;
+      if (isBlank(characteristic.participantId)) {
+        issues.push(validationIssue("Participants", `Characteristic ${label}: participant ID is missing.`));
+      } else if (!participantIds.has(characteristic.participantId)) {
+        issues.push(validationIssue("Participants", `Characteristic ${label}: participant ID does not match a participant row.`));
+      }
+      if (isBlank(characteristic.name)) {
+        issues.push(validationIssue("Participants", `Characteristic ${label}: characteristic name is missing.`));
+      }
+      if (!isBlank(characteristic.participantId) && !isBlank(characteristic.name)) {
+        const key = `${characteristic.participantId}\u001f${characteristic.name}`;
+        if (characteristicKeys.has(key)) {
+          issues.push(validationIssue("Participants", `Characteristic ${label}: participant and characteristic name combination is duplicated.`));
+        }
+        characteristicKeys.add(key);
+      }
+    });
 
   return issues;
 }
 
 function validateDevicesForExport() {
   const issues = [];
+  const deviceIds = new Set();
+  const datasheetIds = new Set(getDatasheetIds());
+  const datasheetIdProperty = state.entitySchemas.device?.properties?.device_datasheet_id;
+  const sensorDatasheetIdProperty = state.entitySchemas.device?.properties
+    ?.device_sensors?.items?.properties?.device_sensor_datasheet_id;
+  const calibrationDateProperty = state.entitySchemas.device?.properties?.device_calibration_date;
   const devices = state.devices.filter((entry) => hasAnyValue([
     entry.id,
     entry.manufacturer,
@@ -5004,20 +5214,43 @@ function validateDevicesForExport() {
       [device.manufacturer, "manufacturer"],
       [device.model, "model"],
       [device.serialNumber, "serial number"],
+      [device.calibrationDate, "calibration date"],
       [device.datasheetId, "datasheet ID"],
     ].forEach(([value, fieldName]) => {
       if (isBlank(value)) {
         issues.push(validationIssue("Devices", `Device ${label}: ${fieldName} is missing.`));
       }
     });
+    if (!isBlank(device.id)) {
+      if (deviceIds.has(device.id)) {
+        issues.push(validationIssue("Devices", `Device ${label}: device ID is duplicated.`));
+      }
+      deviceIds.add(device.id);
+    }
+    if (!isBlank(device.calibrationDate)
+      && !matchesSchemaPattern(device.calibrationDate, calibrationDateProperty)) {
+      issues.push(validationIssue("Devices", `Device ${label}: calibration date must use YYYY-MM-DD.`));
+    }
+    if (!isBlank(device.datasheetId)
+      && !matchesSchemaPattern(device.datasheetId, datasheetIdProperty)) {
+      issues.push(validationIssue("Devices", `Device ${label}: datasheet ID does not match the schema’s slug format.`));
+    }
+    if (!isBlank(device.datasheetId) && !datasheetIds.has(device.datasheetId)) {
+      issues.push(validationIssue("Devices", `Device ${label}: datasheet ID does not match a device-datasheet record.`));
+    }
 
     const sensors = parseDeviceSensors(device.sensorsText || "");
-    if (!sensors || sensors.length === 0) {
-      issues.push(validationIssue("Devices", `Device ${label}: at least one sensor type is recommended.`));
-    }
     (sensors || []).forEach((sensor, sensorIndex) => {
       if (isBlank(sensor.device_sensor_type)) {
         issues.push(validationIssue("Devices", `Device ${label}, sensor ${sensorIndex + 1}: sensor type is missing.`));
+      }
+      if (!isBlank(sensor.device_sensor_datasheet_id)
+        && !matchesSchemaPattern(sensor.device_sensor_datasheet_id, sensorDatasheetIdProperty)) {
+        issues.push(validationIssue("Devices", `Device ${label}, sensor ${sensorIndex + 1}: sensor datasheet ID does not match the schema’s slug format.`));
+      }
+      if (!isBlank(sensor.device_sensor_datasheet_id)
+        && !datasheetIds.has(sensor.device_sensor_datasheet_id)) {
+        issues.push(validationIssue("Devices", `Device ${label}, sensor ${sensorIndex + 1}: sensor datasheet ID does not match a separate datasheet record.`));
       }
     });
   });
@@ -5028,6 +5261,8 @@ function validateDevicesForExport() {
 function validateDatasheetsForExport() {
   const issues = [];
   const schema3 = String(fields.schemaVersion.value || "2.0.0").startsWith("3.");
+  const datasheetIds = new Set();
+  const datasheetIdProperty = state.entitySchemas.datasheet?.properties?.datasheet_id;
   const datasheets = state.datasheets.filter((entry) => hasAnyValue([
     entry.id,
     entry.manufacturer,
@@ -5061,6 +5296,19 @@ function validateDatasheetsForExport() {
         issues.push(validationIssue("Datasheets", `Datasheet ${label}: ${fieldName} is missing.`));
       }
     });
+    if (!isBlank(datasheet.id)) {
+      if (datasheetIds.has(datasheet.id)) {
+        issues.push(validationIssue("Datasheets", `Datasheet ${label}: datasheet ID is duplicated.`));
+      }
+      datasheetIds.add(datasheet.id);
+      if (!matchesSchemaPattern(datasheet.id, datasheetIdProperty)) {
+        issues.push(validationIssue("Datasheets", `Datasheet ${label}: datasheet ID does not match the schema’s slug format.`));
+      }
+    }
+    if (!isBlank(datasheet.calibrationInterval)
+      && (!Number.isInteger(Number(datasheet.calibrationInterval)) || Number(datasheet.calibrationInterval) < 0)) {
+      issues.push(validationIssue("Datasheets", `Datasheet ${label}: calibration interval must be a non-negative integer.`));
+    }
 
     const modalities = normalizeStringArray(datasheet.modalities);
     if (schema3 && modalities.length === 0) {
@@ -5069,8 +5317,8 @@ function validateDatasheetsForExport() {
     if (schema3 && modalities.includes("other") && isBlank(datasheet.modalityOther)) {
       issues.push(validationIssue("Datasheets", `Datasheet ${label}: other modality description is missing.`));
     }
-    const requiresLightFields = !schema3 || modalities.includes("light");
-    if (requiresLightFields) {
+    const includesLight = modalities.includes("light");
+    if (!schema3) {
       [
         [datasheet.linearity, "linearity"],
         [datasheet.directionalResponse, "directional response"],
@@ -5081,14 +5329,19 @@ function validateDatasheetsForExport() {
         }
       });
     }
+    if (schema3 && includesLight && isBlank(datasheet.range)) {
+      issues.push(validationIssue("Datasheets", `Datasheet ${label}: calibration range is missing.`));
+    }
 
     const spectralRows = parseSpectralSensitivity(datasheet.spectralSensitivityText || "");
-    if (requiresLightFields && spectralRows.length === 0) {
+    if (!schema3 && spectralRows.length === 0) {
       issues.push(validationIssue("Datasheets", `Datasheet ${label}: spectral sensitivity rows are missing.`));
     }
-    (requiresLightFields ? spectralRows : []).forEach((row, rowIndex) => {
+    spectralRows.forEach((row, rowIndex) => {
       if (Number.isNaN(row.datasheet_calibration_spectral_sensitivity_wavelength) || Number.isNaN(row.datasheet_calibration_spectral_sensitivity_relative)) {
         issues.push(validationIssue("Datasheets", `Datasheet ${label}, spectral row ${rowIndex + 1}: wavelength and relative sensitivity must be numeric.`));
+      } else if (row.datasheet_calibration_spectral_sensitivity_wavelength < 0) {
+        issues.push(validationIssue("Datasheets", `Datasheet ${label}, spectral row ${rowIndex + 1}: wavelength must be non-negative.`));
       }
     });
 
@@ -5101,12 +5354,12 @@ function validateDatasheetsForExport() {
     }
 
     const channels = parseChannels(datasheet.channelsText || "");
-    if (!channels || channels.length === 0) {
+    if (schema3 && (!channels || channels.length === 0)) {
       issues.push(validationIssue("Datasheets", `Datasheet ${label}: at least one channel is missing.`));
     }
     (channels || []).forEach((channel, channelIndex) => {
-      if (Number.isNaN(channel.datasheet_channel_nr)) {
-        issues.push(validationIssue("Datasheets", `Datasheet ${label}, channel ${channelIndex + 1}: channel number is missing or not numeric.`));
+      if (!Number.isInteger(channel.datasheet_channel_nr) || channel.datasheet_channel_nr < 1) {
+        issues.push(validationIssue("Datasheets", `Datasheet ${label}, channel ${channelIndex + 1}: channel number must be an integer of 1 or greater.`));
       }
       if (isBlank(channel.datasheet_channel_name)) {
         issues.push(validationIssue("Datasheets", `Datasheet ${label}, channel ${channelIndex + 1}: channel name is missing.`));
@@ -5190,6 +5443,11 @@ function validateDatasetsForExport() {
     }
     if (schemaVersion !== "3.0.0" && !isBlank(dataset.deviceId) && !deviceIds.has(dataset.deviceId)) {
       issues.push(validationIssue("Datasets", `Dataset ${label}: device ID does not match any device record.`));
+    }
+    if (schemaVersion !== "3.0.0"
+      && !isBlank(dataset.samplingInterval)
+      && (!isFiniteNumberValue(dataset.samplingInterval) || Number(dataset.samplingInterval) < 0)) {
+      issues.push(validationIssue("Datasets", `Dataset ${label}: sampling interval must be a non-negative number.`));
     }
 
     const fileGroups = dataset.fileGroups || [];
@@ -5295,6 +5553,10 @@ function validateDatasetsForExport() {
       if (!group.files || group.files.length === 0) {
         issues.push(validationIssue("Datasets", `${groupLabel}: no data file has been selected or listed.`));
       }
+      if (!isBlank(group.headerRow)
+        && (!Number.isInteger(Number(group.headerRow)) || Number(group.headerRow) < 1)) {
+        issues.push(validationIssue("Datasets", `${groupLabel}: header row must be an integer of 1 or greater.`));
+      }
       if (!isBlank(group.fileTimezone) && !isRecognizedTimeZone(group.fileTimezone)) {
         issues.push(validationIssue("Datasets", `${groupLabel}: ${timeZoneIssueMessage("file timezone", group.fileTimezone)}`));
       }
@@ -5348,6 +5610,9 @@ function validateDatasetsForExport() {
       }
       if (schemaVersion === "3.0.0" && group.role === "primary" && getPrimaryVariables(group).length === 0) {
         issues.push(validationIssue("Datasets", `${groupLabel}: select at least one primary variable. A primary variable is a principal or default variable used to analyse this file group.`));
+      }
+      if (getPrimaryVariables(group).length > 4) {
+        issues.push(validationIssue("Datasets", `${groupLabel}: no more than four primary variables are allowed.`));
       }
       if (schemaVersion !== "3.0.0" && group.auxiliary !== true && getPrimaryVariables(group).length === 0) {
         issues.push(validationIssue("Datasets", `${groupLabel}: at least one primary variable should be selected.`));
@@ -5464,13 +5729,7 @@ async function importPackageFolder(files) {
       missing.push("datasets.json");
     }
 
-    if (found.builderProject) {
-      const project = JSON.parse(await found.builderProject.text());
-      restoreBuilderProject(project);
-      imported.push("glc-builder-project.json");
-    } else {
-      state.datasetTemplates = [];
-    }
+    state.datasetTemplates = [];
 
     if (imported.length === 0) {
       throw new Error("No recognized metadata files were found. Expected files at the folder root or inside data/.");
@@ -5585,7 +5844,6 @@ function findPackageMetadataFiles(files) {
     devices: findPackageFile(files, ["devices.json"]),
     datasheets: findPackageFile(files, ["device_datasheet.json", "device_datasheets.json", "sensor_datasheet.json"]),
     datasets: findPackageFile(files, ["datasets.json"]),
-    builderProject: findPackageFile(files, ["glc-builder-project.json"]),
   };
 }
 
@@ -5635,7 +5893,7 @@ async function downloadPackageZip() {
   try {
     const files = await buildPackageZipFiles();
     const zipBlob = createZipBlob(files);
-    downloadBlob("glc-metadata-package.zip", zipBlob);
+    downloadBlob(buildPackageZipFilename(), zipBlob);
   } catch (error) {
     if (exportValidationPanel) {
       exportValidationPanel.className = "export-validation-panel warning";
@@ -5645,6 +5903,16 @@ async function downloadPackageZip() {
       `;
     }
   }
+}
+
+function buildPackageZipFilename() {
+  const packageName = String(fields.packageName.value || "")
+    .trim()
+    .replace(/\.zip$/i, "")
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/^[.-]+|[.-]+$/g, "");
+  if (!packageName) return "glc-metadata-package.zip";
+  return `${packageName.endsWith("-package") ? packageName : `${packageName}-package`}.zip`;
 }
 
 function buildBuilderProject() {
@@ -5827,6 +6095,25 @@ function readBrowserDraft() {
   }
 }
 
+function startOver() {
+  if (builderHasMeaningfulContent()) {
+    const confirmed = window.confirm(
+      "Start over with a blank package? This clears the current form and its browser-saved draft. Downloaded files will not be affected."
+    );
+    if (!confirmed) return;
+  }
+
+  autosaveReady = false;
+  draftDirtySinceBackup = false;
+  clearTimeout(autosaveTimer);
+  try {
+    localStorage.removeItem(DRAFT_STORAGE_KEY);
+  } catch (error) {
+    console.warn("Could not clear the browser-saved GLC draft.", error);
+  }
+  window.location.reload();
+}
+
 function initializeDraftPersistence() {
   const status = document.querySelector("#local-draft-status");
   const message = document.querySelector("#local-draft-status-message");
@@ -5853,16 +6140,6 @@ function initializeDraftPersistence() {
     autosaveReady = true;
     console.warn("Could not restore the browser-saved GLC draft.", error);
   }
-
-  document.querySelector("#start-new-package").addEventListener("click", () => {
-    localStorage.removeItem(DRAFT_STORAGE_KEY);
-    autosaveReady = false;
-    clearPackageFolderImport();
-    setStep("start");
-    autosaveReady = true;
-    draftDirtySinceBackup = false;
-    status.hidden = true;
-  });
 }
 
 document.addEventListener("click", (event) => {
@@ -5916,10 +6193,6 @@ async function buildPackageZipFiles() {
         "It does not include the original data files selected in the dataset file assistant.",
         "Before running the full validator, add referenced data files under the paths declared in data/datasets.json.",
       ].join("\n"),
-    },
-    {
-      path: "glc-builder-project.json",
-      text: JSON.stringify(buildBuilderProject(), null, 2),
     },
   ];
 
@@ -6068,12 +6341,6 @@ async function downloadSchema(filename) {
   const response = await fetch(`schemas/${schemaVersion}/${filename}`);
   const text = await response.text();
   downloadText(filename, text, "application/json");
-}
-
-async function copyPreview() {
-  await navigator.clipboard.writeText(jsonPreview.textContent);
-  validationSummary.textContent = "Active preview copied to clipboard.";
-  validationSummary.className = "validation-summary ok";
 }
 
 function escapeHtml(value) {

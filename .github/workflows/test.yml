@@ -25,9 +25,12 @@ jobs:
           node --check app.js
           node --check datetime-metadata.js
           node --check tests/datetime-metadata.test.js
+          node --check tests/schema-ui-consistency.test.js
 
       - name: Run JavaScript tests
-        run: node tests/datetime-metadata.test.js
+        run: |
+          node tests/datetime-metadata.test.js
+          node tests/schema-ui-consistency.test.js
 
       - name: Validate schema bundles and profile naming
         run: |

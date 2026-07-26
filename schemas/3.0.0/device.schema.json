@@ -45,7 +45,7 @@
       "type": "string",
       "format": "date",
       "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-      "description": "Date of last calibration (format YYYY-MM-DD). Omit when unknown or not applicable.",
+      "description": "Required date of the device's most recent applicable calibration (format YYYY-MM-DD).",
       "examples": [
         "2026-01-15"
       ]
@@ -82,13 +82,13 @@
               "photopic light sensor"
             ]
           },
-          "device_sensor_datasheet_id": {
-            "type": "string",
-            "pattern": "^[a-z0-9][a-z0-9._-]*(-v[0-9]+(\\.[0-9]+)*)?$",
-            "description": "Reference to detailed datasheet of the sensor",
-            "examples": [
-              "example-instruments-ls100-v1"
-            ]
+      "device_sensor_datasheet_id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9._-]*(-v[0-9]+(\\.[0-9]+)*)?$",
+        "description": "Optional reference to a separate detailed datasheet for this sensor component. Omit when the required whole-device datasheet covers the integrated sensor.",
+        "examples": [
+          "example-instruments-ls100-v1"
+        ]
           }
         },
         "required": [
@@ -110,6 +110,7 @@
     "device_manufacturer",
     "device_model",
     "device_serial_number",
+    "device_calibration_date",
     "device_datasheet_id"
   ],
   "examples": [

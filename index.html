@@ -53,6 +53,9 @@
           <button type="button" id="download-builder-project-header" class="secondary-button small-button" hidden>
             Save builder draft (.json)
           </button>
+          <button type="button" id="start-over-header" class="start-over-button small-button" hidden>
+            Start over
+          </button>
           <a
             id="active-schema-pill"
             class="schema-pill schema-pill-current"
@@ -69,9 +72,27 @@
           <ol>
             <li class="active" data-step-link="start">Start</li>
             <li data-step-link="project">Project setup</li>
-            <li data-step-link="study">Study</li>
-            <li data-step-link="participants">Participants</li>
-            <li data-step-link="devices">Devices</li>
+            <li data-step-link="study">
+              Study
+              <ul class="progress-subnav">
+                <li><button type="button" data-subsection-step="study" data-subsection-target="study-details">Study details</button></li>
+                <li><button type="button" data-subsection-step="study" data-subsection-target="study-contributors">Contributors</button></li>
+              </ul>
+            </li>
+            <li data-step-link="participants">
+              Participants
+              <ul class="progress-subnav">
+                <li><button type="button" data-subsection-step="participants" data-subsection-target="participant-roster">Participant roster</button></li>
+                <li><button type="button" data-subsection-step="participants" data-subsection-target="participant-characteristics">Characteristics</button></li>
+              </ul>
+            </li>
+            <li data-step-link="devices">
+              Devices
+              <ul class="progress-subnav">
+                <li><button type="button" data-subsection-step="devices" data-subsection-target="device-inventory">Device inventory</button></li>
+                <li><button type="button" data-subsection-step="devices" data-subsection-target="device-datasheets">Datasheets</button></li>
+              </ul>
+            </li>
             <li data-step-link="templates" hidden>Dataset templates</li>
             <li data-step-link="datasets">Datasets</li>
             <li data-step-link="export">Export package</li>
@@ -221,7 +242,6 @@
               </div>
               <div id="local-draft-status" class="local-draft-status" hidden>
                 <span id="local-draft-status-message">Your browser-saved draft was restored.</span>
-                <button type="button" id="start-new-package" class="secondary-button small-button">Start a new package</button>
               </div>
               <div class="subsection-heading new-package-heading">
                 <h3>Start a new package</h3>
@@ -291,7 +311,7 @@
                 <p id="study-import-summary">Optional: import an existing <code>study.json</code> to pre-fill this page.</p>
                 <button type="button" class="small-button primary-import-button" id="import-study-button">Import selected study file</button>
               </div>
-              <div class="grid">
+              <div class="grid" id="study-details">
                 <label title="Unique identifier for study. Type: string.">
                   Study internal ID <span class="required">*</span>
                   <input id="study-internal-id" type="text" placeholder="Example: STUDY001" />
@@ -359,7 +379,7 @@
                 <button type="button" class="secondary-button" id="add-study-group">Add study group</button>
               </div>
 
-              <div class="subsection-heading">
+              <div class="subsection-heading" id="study-contributors">
                 <h3>Study contributors</h3>
                 <p>Optional embedded contributors from <code>contributor.schema.json</code>. Add rows manually, or import a CSV/TSV/JSON file to fill the table.</p>
               </div>
@@ -413,7 +433,7 @@
                   <p>Add participant rows for <code>participants.csv</code> and optional characteristics.</p>
                 </div>
               </div>
-              <div class="subsection-heading prominent-subsection">
+              <div class="subsection-heading prominent-subsection" id="participant-roster">
                 <h3>Participant roster</h3>
                 <p>Required rows for <code>participants.csv</code>.</p>
               </div>
@@ -438,7 +458,7 @@
                 </div>
               </div>
 
-              <div class="subsection-heading prominent-subsection">
+              <div class="subsection-heading prominent-subsection" id="participant-characteristics">
                 <h3>Participant characteristics</h3>
                 <p>Optional long-format rows for <code>participant_characteristics.csv</code>.</p>
               </div>
@@ -489,7 +509,7 @@
                   <p>Add device records and the datasheets they reference.</p>
                 </div>
               </div>
-              <div class="subsection-heading prominent-subsection">
+              <div class="subsection-heading prominent-subsection" id="device-inventory">
                 <h3>Device inventory</h3>
                 <p>Required records for <code>devices.json</code>.</p>
               </div>
@@ -520,7 +540,7 @@
                 <button type="button" class="secondary-button danger-button" id="clear-all-devices">Clear all device rows</button>
               </div>
 
-              <div class="subsection-heading prominent-subsection">
+              <div class="subsection-heading prominent-subsection" id="device-datasheets">
                 <h3>Device datasheets</h3>
                 <p>Add device or sensor datasheet records referenced by devices.</p>
               </div>
@@ -677,11 +697,11 @@
                 </label>
                 <label>
                   Dataset location: latitude <span class="required">*</span>
-                  <input id="latitude" name="latitude" type="text" placeholder="Example: 48.5216" required />
+                  <input id="latitude" name="latitude" type="number" step="any" placeholder="Example: 48.5216" required />
                 </label>
                 <label>
                   Dataset location: longitude <span class="required">*</span>
-                  <input id="longitude" name="longitude" type="text" placeholder="Example: 9.0576" required />
+                  <input id="longitude" name="longitude" type="number" step="any" placeholder="Example: 9.0576" required />
                 </label>
               </div>
 
@@ -816,11 +836,11 @@
                   </select>
                 </label>
                 <label>
-                  Temporal resolution value <span class="required">*</span>
+                  Temporal resolution value <span id="temporal-resolution-value-required" class="required">*</span>
                   <input id="sampling-interval" name="temporal-resolution-value" type="number" min="0" step="any" placeholder="Example: 60" required />
                 </label>
                 <label>
-                  Temporal resolution unit <span class="required">*</span>
+                  Temporal resolution unit <span id="temporal-resolution-unit-required" class="required">*</span>
                   <input id="temporal-resolution-unit" name="temporal-resolution-unit" type="text" placeholder="Example: second" required />
                 </label>
                 <label class="wide">
@@ -837,7 +857,7 @@
                 </label>
                 <label>
                   Header row
-                  <input id="header-row" type="number" min="1" placeholder="Example: 1" />
+                  <input id="header-row" type="number" min="1" step="1" placeholder="Example: 1" />
                 </label>
                 <label>
                   File timezone <span class="required">*</span>
@@ -1023,7 +1043,6 @@
                 <button type="button" id="download-devices">Download devices.json</button>
                 <button type="button" id="download-datasheets">Download device_datasheet.json</button>
                 <button type="button" id="download-json">Download datasets.json</button>
-                <button type="button" id="copy-json">Copy active preview</button>
               </div>
               <div class="actions inline-actions">
                 <button type="button" class="secondary-button" data-prev-step="datasets">Back</button>
@@ -1081,6 +1100,6 @@
 
     <datalist id="timezone-options"></datalist>
     <script src="datetime-metadata.js"></script>
-    <script src="app.js?v=20260726-schema-pill-colors"></script>
+    <script src="app.js?v=20260726-sensor-datasheet-options"></script>
   </body>
 </html>

@@ -177,6 +177,19 @@ body {
   width: auto;
 }
 
+.start-over-button {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: var(--muted);
+}
+
+.start-over-button:hover:not(:disabled),
+.start-over-button:focus-visible:not(:disabled) {
+  border-color: #94a3b8;
+  background: #f8fafc;
+  color: var(--ink);
+}
+
 .local-draft-status {
   display: flex;
   align-items: center;
@@ -309,6 +322,49 @@ h2 {
   color: var(--ink);
   border-color: var(--accent);
   font-weight: 700;
+}
+
+.progress-panel .progress-subnav {
+  list-style: none;
+  display: grid;
+  gap: 3px;
+  margin: 7px 0 0;
+  padding: 0;
+}
+
+.progress-panel .progress-subnav li {
+  border: 0;
+  padding: 0;
+  font-size: inherit;
+  font-weight: 400;
+}
+
+.progress-panel .progress-subnav button {
+  appearance: none;
+  background: none;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 2px 0;
+  text-align: left;
+}
+
+.progress-panel .progress-subnav button:hover,
+.progress-panel .progress-subnav button:focus-visible {
+  color: var(--accent-dark);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+#study-details,
+#study-contributors,
+#participant-roster,
+#participant-characteristics,
+#device-inventory,
+#device-datasheets {
+  scroll-margin-top: 20px;
 }
 
 .builder-panel,
@@ -1241,10 +1297,6 @@ button:disabled {
   background: var(--charcoal);
 }
 
-#copy-json {
-  background: var(--charcoal);
-}
-
 .preview-heading {
   display: flex;
   justify-content: space-between;
@@ -1447,7 +1499,7 @@ code {
   grid-column: 1 / -1;
 }
 
-.export-grid button:nth-child(even) {
+.export-grid button:not(.zip-download) {
   background: var(--charcoal);
 }
 
