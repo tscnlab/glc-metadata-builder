@@ -2,7 +2,7 @@
 
 <img src="assets/GLC_Logo.png" alt="Global Light Commons logo" width="320">
 
-A browser-based metadata builder for creating GLC/GLEAM metadata packages without hand-editing JSON and CSV files.
+A browser-based metadata builder for creating GLC metadata packages without hand-editing JSON and CSV files. It retains support for legacy GLEAM schema versions.
 
 Open the hosted builder here:
 
@@ -25,7 +25,7 @@ The builder helps data owners create a draft GLC metadata package by guiding the
 - dataset file groups and variables
 - export and soft validation
 
-It currently supports schema release `2.0.0`.
+It supports schema releases `2.0.0` and `3.0.0`.
 
 ## What it exports
 
@@ -44,14 +44,14 @@ It can also download a metadata package `.zip`.
 The zip contains:
 
 - generated metadata files
-- the `schemas/2.0.0/` schema bundle referenced by `datapackage.json`
+- the selected schema bundle referenced by `datapackage.json`
 - a short `README.txt`
 
 The zip does not include the original data files selected in the dataset file assistant. Those files still need to be added to the exported package before running the full validator.
 
 ## Required resources
 
-The GLEAM datapackage profile requires these core resources:
+The GLC datapackage profile requires these core resources:
 
 - `study`
 - `participants`
@@ -67,32 +67,40 @@ Additional supporting resources, such as scripts, README files, raw-data folders
 
 ## Key features
 
-- Schema version fixed to `2.0.0`
+- Schema `3.0.0` selected by default, with legacy `2.0.0` import and export support
 - Required fields marked with red asterisks
 - Hover help from local schema descriptions
 - JSON/CSV/TSV imports where practical
 - Cross-reference dropdowns for study, participant, device, and datasheet IDs
 - Multiple dataset records per study
-- Dataset file groups for same-structure files and auxiliary files
+- Dataset file groups with independent modality, device, location, temporal-resolution, datetime, collection, role, and processing metadata
 - Header detection for selected CSV/TXT/TSV dataset files
 - Auto-detected dataset variables from file headers
 - File-group-level variable terms, labels, units, calibration notes, semantic-term dropdowns, and primary-variable selection
+- Concise variable labels with an optional description field for full questionnaire prompts, source wording, instructions, and interpretation
+- Schema 3.0.0 variable units are required for `numeric` and `integer` variables and omitted for `string`, `boolean`, and `factor` variables. The builder suggests common UCUM codes while permitting a precise custom unit; placeholder values such as `N/A` and `Unknown` are rejected.
 - Soft validation panel on the Export page
+- Browser-local draft autosave with resume and start-over controls
+- Downloadable and re-importable builder drafts (`glc-builder-project.json`)
 - Individual metadata downloads and zip export
+
+Autosave remains on the current device in the browser's local storage. Saved
+builder drafts preserve metadata entries, detected headers, and selected file names,
+but do not contain or retain browser access to the original measurement files.
 
 ## Dataset model
 
-The builder treats one dataset record as one participant-level measurement dataset.
+For participant-associated data, the builder normally treats one dataset record as the collection of file groups associated with one participant in the relevant study period.
 
-Use a new dataset record when the participant, primary device, body/device location, or primary modality changes.
+Use a new dataset record when the participant or the relevant study period or measurement context changes. Non-participant data can be represented explicitly by setting the participant association to false.
 
-Use a dataset file group when files belong to the same participant measurement context and share a structure, or when a file is auxiliary to the primary measurement.
+Use separate file groups when files differ in structure, modality, device association, device location, temporal resolution, datetime representation, collection method, processing state, or analytical role. Device metadata belong to the applicable file group rather than the dataset as a whole.
 
 Examples:
 
-- Wrist light data and its wear log can be one dataset record with two file groups.
-- Wrist light data and chest light data for the same participant should usually be two dataset records.
-- A standalone questionnaire dataset should usually be its own dataset record unless it is only auxiliary to interpreting the primary measurement.
+- Head, wrist, and chest sensor data for one participant can be file groups in the same participant dataset, with each sensor group linked to its corresponding device.
+- A wear log can be a supporting file group in that participant dataset. Link it to a device only when the complete file group unambiguously concerns one device.
+- Questionnaires and diaries can be separate file groups in the participant dataset, with no device link when they concern no device or concern multiple devices collectively.
 
 ## Soft validation
 
@@ -113,21 +121,14 @@ The Python validator remains the authoritative validation step.
 
 ## Schema bundle
 
-A local copy of the schema bundle is included at:
+A local copy of each supported schema bundle is included at:
 
 ```text
 schemas/2.0.0/
+schemas/3.0.0/
 ```
 
 This lets the builder show schema descriptions as hover help and lets users download schema files directly from the UI.
-
-The repository also contains:
-
-```text
-schemas/2.0.0/device_datasheet.generalized-draft.schema.json
-```
-
-That file is a discussion draft for a more general device/sensor datasheet model. The builder currently continues to use `device_datasheet.schema.json`.
 
 ## Development
 
@@ -144,3 +145,6 @@ http://localhost:8766
 ```
 
 If changes do not appear immediately, hard refresh the browser.
+## Dataset templates
+
+Dataset templates are deferred while schema 3.0.0 metadata creation and validation are stabilized. The current testing build creates dataset records manually and does not expose template controls or include builder-specific project state in exported packages. The preserved implementation and remaining work are documented in `docs/dataset-template-backlog.md`.
