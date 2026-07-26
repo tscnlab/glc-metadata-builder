@@ -375,9 +375,12 @@ h2 {
 }
 
 .preview-panel {
-  align-self: stretch;
+  align-self: start;
   display: flex;
   flex-direction: column;
+  position: sticky;
+  top: 18px;
+  height: calc(100vh - 36px);
   min-height: 0;
 }
 
@@ -1316,6 +1319,17 @@ pre {
   line-height: 1.45;
 }
 
+#json-preview {
+  flex: 0 0 auto;
+  width: 100%;
+  height: calc(100vh - 130px);
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: scroll;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
 @media (max-width: 1100px) {
   .workspace {
     grid-template-columns: 1fr;
@@ -1323,6 +1337,16 @@ pre {
 
   .progress-panel {
     position: static;
+  }
+
+  .preview-panel {
+    position: static;
+    height: auto;
+  }
+
+  #json-preview {
+    height: 60vh;
+    min-height: 320px;
   }
 
   .progress-panel ol {
