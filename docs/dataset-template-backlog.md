@@ -52,8 +52,8 @@ The current implementation is preserved on the `schema-3.0.0-development` branch
 
 ## Conditions for re-enabling templates
 
-- Schema 3.0.0 metadata structure and validator behavior are stable.
-- Builder-generated 3.0.0 packages pass the validator end to end.
+- Schema 3.0.1 metadata structure and validator behavior are stable.
+- Builder-generated 3.0.1 packages pass the validator end to end.
 - Persistence and portable project import/export are complete.
 - Template propagation and serialization have unit tests.
 - Complete template journeys pass browser tests on desktop and mobile.
