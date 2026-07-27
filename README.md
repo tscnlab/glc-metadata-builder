@@ -25,7 +25,7 @@ The builder helps data owners create a draft GLC metadata package by guiding the
 - dataset file groups and variables
 - export and soft validation
 
-It creates packages using the current schema release, `3.0.1`.
+It creates packages using the current schema release, `3.0.2`.
 
 ## What it exports
 
@@ -67,8 +67,8 @@ Additional supporting resources, such as scripts, README files, raw-data folders
 
 ## Key features
 
-- Schema `3.0.1` is the only new-package option
-- Existing `2.0.0` or `3.0.0` packages and builder drafts open in the corrected `3.0.1` workflow
+- Schema `3.0.2` is the only new-package option
+- Existing `2.0.0` or `3.0.0` packages and builder drafts open in the corrected `3.0.2` workflow
 - Required fields marked with red asterisks
 - Hover help from local schema descriptions
 - JSON/CSV/TSV imports where practical
@@ -79,7 +79,7 @@ Additional supporting resources, such as scripts, README files, raw-data folders
 - Auto-detected dataset variables from file headers
 - File-group-level variable terms, labels, units, calibration notes, semantic-term dropdowns, and primary-variable selection
 - Concise variable labels with an optional description field for full questionnaire prompts, source wording, instructions, and interpretation
-- Schema 3.0.1 variable units are required for `numeric` and `integer` variables and omitted for `string`, `boolean`, and `factor` variables. The builder suggests common UCUM codes while permitting a precise custom unit; placeholder values such as `N/A` and `Unknown` are rejected.
+- Schema 3.0.2 variable units are required for `numeric` and `integer` variables and omitted for `string`, `boolean`, and `factor` variables. The builder suggests common UCUM codes while permitting a precise custom unit; placeholder values such as `N/A` and `Unknown` are rejected.
 - Soft validation panel on the Export page
 - Browser-local draft autosave with resume and start-over controls
 - Downloadable and re-importable builder drafts (`glc-builder-project.json`)
@@ -125,7 +125,7 @@ The Python validator remains the authoritative validation step.
 A local copy of the current schema bundle is included at:
 
 ```text
-schemas/3.0.1/
+schemas/3.0.2/
 ```
 
 This lets the builder show schema descriptions as hover help and lets users download schema files directly from the UI.
@@ -147,4 +147,4 @@ http://localhost:8766
 If changes do not appear immediately, hard refresh the browser.
 ## Dataset templates
 
-Dataset templates are deferred while schema 3.0.1 metadata creation and validation are stabilized. The current testing build creates dataset records manually and does not expose template controls or include builder-specific project state in exported packages. The preserved implementation and remaining work are documented in `docs/dataset-template-backlog.md`.
+Dataset templates are deferred while schema 3.0.2 metadata creation and validation are stabilized. The current testing build creates dataset records manually and does not expose template controls or include builder-specific project state in exported packages. The preserved implementation and remaining work are documented in `docs/dataset-template-backlog.md`.
