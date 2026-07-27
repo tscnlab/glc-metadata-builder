@@ -100,5 +100,9 @@ assert(
   app.includes('if (version === "2.0.0" || version === "3.0.0") return "3.0.1";'),
   "Imported schema 2.0.0 and 3.0.0 work must be upgraded into the 3.0.1 builder workflow.",
 );
+assert(
+  html.includes('href="https://tscnlab.github.io/glc-dp-viewer/validate/"'),
+  "The builder navigation must link to the published dataset validation guide.",
+);
 
 console.log("Schema/UI consistency checks passed.");
