@@ -2115,8 +2115,8 @@ select:focus {
 }
 
 .glc-footer {
-  margin-top: 2.5rem;
-  padding: 1.75rem 0 1rem;
+  margin-top: 0;
+  padding: 0;
   background: #111827;
   color: #d1d5db;
 }
