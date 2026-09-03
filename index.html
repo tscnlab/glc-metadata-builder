@@ -4,44 +4,68 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>GLC Metadata Builder</title>
-    <link rel="stylesheet" href="styles.css?v=20260726-route-headings" />
+    <link rel="stylesheet" href="styles.css?v=20260903-shared-navigation" />
+    <link rel="stylesheet" href="navbar.css?v=20260903-shared-navigation" />
+    <link rel="stylesheet" href="https://globallightcommons.github.io/glc-dp-viewer/assets/theme/css/fontawesome-all.min.css" />
   </head>
   <body>
-    <header class="topbar">
-      <div class="topbar-inner">
-        <a class="brand-block" href="https://globallightcommons.org" aria-label="Global Light Commons">
-          <img class="brand-logo" src="assets/GLC_Logo.png" alt="Global Light Commons logo" />
+    <nav class="glc-navbar" aria-label="Global Light Commons">
+      <div class="glc-navbar-inner">
+        <a href="https://globallightcommons.org/" class="glc-brand">
+          <img src="assets/GLC_Logo.png" alt="Global Light Commons" />
         </a>
-        <span class="site-context">Metadata builder</span>
-        <nav class="builder-nav" aria-label="GLC resources">
-          <a href="https://tscnlab.github.io/glc-dp-viewer/">Overview</a>
-          <details class="nav-menu">
-            <summary>GLC Standard</summary>
-            <div class="nav-menu-items">
-              <a href="https://tscnlab.github.io/glc-dp-viewer/metadata/">Package profile</a>
-              <a href="https://tscnlab.github.io/glc-dp-viewer/data/">Resource schemas</a>
-              <a href="https://tscnlab.github.io/glc-dp-viewer/example/">Example package</a>
+
+        <div class="glc-nav-area">
+          <div class="glc-nav-links">
+            <a href="https://globallightcommons.org/about/">About</a>
+            <a href="https://globallightcommons.org/research/">Research</a>
+            <a href="https://globallightcommons.org/team/">Team</a>
+            <a href="https://globallightcommons.org/advisory-board/">Advisory Board</a>
+            <a href="https://globallightcommons.org/resources/">Resources</a>
+            <a href="https://globallightcommons.org/contact/">Contact</a>
+          </div>
+
+          <div class="glc-ecosystem-nav">
+            <span class="glc-ecosystem-label">Ecosystem:</span>
+            <div class="glc-ecosystem-links">
+              <a class="glc-ecosystem-link" href="https://globallightcommons.github.io/glc-dp-viewer/">Overview</a>
+
+              <div class="glc-ecosystem-dropdown">
+                <div class="glc-ecosystem-parent">
+                  <a class="glc-ecosystem-link glc-ecosystem-parent-link" href="https://globallightcommons.github.io/glc-dp-viewer/profile/">Standard</a>
+                  <button class="glc-ecosystem-trigger" type="button" aria-label="Open Standard menu" aria-haspopup="true" aria-expanded="false">
+                    <svg viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"></path></svg>
+                  </button>
+                </div>
+                <div class="glc-ecosystem-menu">
+                  <a href="https://globallightcommons.github.io/glc-dp-viewer/profile/">Package profile</a>
+                  <a href="https://globallightcommons.github.io/glc-dp-viewer/schemas/">Resource schemas</a>
+                  <a href="https://globallightcommons.github.io/glc-dp-viewer/example-package/">Example package</a>
+                </div>
+              </div>
+
+              <a class="glc-ecosystem-link" href="https://globallightcommons.github.io/glc-dp-viewer/registry/">Registry</a>
+
+              <div class="glc-ecosystem-dropdown">
+                <div class="glc-ecosystem-parent">
+                  <a class="glc-ecosystem-link glc-ecosystem-parent-link active" href="https://globallightcommons.github.io/glc-dp-viewer/tools/">Tools</a>
+                  <button class="glc-ecosystem-trigger" type="button" aria-label="Open Tools menu" aria-haspopup="true" aria-expanded="false">
+                    <svg viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"></path></svg>
+                  </button>
+                </div>
+                <div class="glc-ecosystem-menu glc-tools-menu">
+                  <a href="https://globallightcommons.github.io/glc-dp-viewer/tools/">Tools overview</a>
+                  <a href="./" aria-current="page">Metadata builder</a>
+                  <a href="https://globallightcommons.github.io/glc-dp-viewer/validate/">Validate a dataset</a>
+                  <a href="https://tscnlab.github.io/glc-dp-r/">GLC-dp</a>
+                  <a href="https://tscnlab.github.io/LightLogR/">LightLogR</a>
+                </div>
+              </div>
             </div>
-          </details>
-          <a href="https://tscnlab.github.io/glc-dp-viewer/registry/">GLC Registry</a>
-          <details class="nav-menu active">
-            <summary>Tools</summary>
-            <div class="nav-menu-items">
-              <a href="./" aria-current="page">Metadata builder</a>
-              <a href="https://tscnlab.github.io/glc-dp-viewer/validate/">Validate a dataset</a>
-            </div>
-          </details>
-          <details class="nav-menu">
-            <summary>About</summary>
-            <div class="nav-menu-items nav-menu-right">
-              <a href="https://www.visualdiet.org/about">About GLC</a>
-              <a href="https://tscnlab.github.io/glc-dp-viewer/acknowledgements/">Acknowledgements</a>
-            </div>
-          </details>
-          <a href="https://github.com/tscnlab/glc-metadata-builder">GitHub</a>
-        </nav>
+          </div>
+        </div>
       </div>
-    </header>
+    </nav>
 
     <main class="app-shell">
       <section class="builder-heading">
@@ -224,7 +248,7 @@
                     <a href="https://visualdiet.org" target="_blank" rel="noopener noreferrer">
                       Learn more about the Global Light Commons initiative
                     </a>
-                    <a href="https://tscnlab.github.io/glc-dp-viewer/" target="_blank" rel="noopener noreferrer">
+                    <a href="https://globallightcommons.github.io/glc-dp-viewer/" target="_blank" rel="noopener noreferrer">
                       View human-readable details of the GLC datapackage structure
                     </a>
                   </div>
@@ -1061,38 +1085,44 @@
     </main>
 
     <footer class="glc-footer">
-      <div class="footer-inner">
-        <div class="footer-top">
-          <section class="footer-intro">
-            <a href="https://globallightcommons.org" aria-label="Global Light Commons">
-              <img src="assets/GLC_Logo.png" alt="Global Light Commons" />
-            </a>
+      <div class="glc-footer-inner">
+        <div class="glc-footer-top">
+          <div class="glc-footer-brand">
+            <img src="assets/GLC_Logo.png" alt="Global Light Commons" class="glc-footer-logo" />
             <p>
-              The Global Light Commons initiative at the Technical University
-              of Munich studies how light affects health and well-being across
+              Global Light Commons Research Initiative at the Technical University
+              of Munich, studying how light affects health and well-being across
               cultures and environments.
             </p>
-          </section>
-          <section class="footer-links">
-            <h2>Quick links</h2>
-            <ul>
-              <li><a href="https://globallightcommons.org">Global Light Commons initiative</a></li>
-              <li><a href="https://tscnlab.github.io/glc-dp-viewer/registry/">GLC dataset registry</a></li>
-              <li><a href="https://tscnlab.github.io/LightLogR/">LightLogR</a></li>
-              <li><a href="https://tscnlab.github.io/glc-dp-viewer/">Data package documentation</a></li>
-            </ul>
-          </section>
+            <div class="glc-footer-social">
+              <a href="https://www.linkedin.com/in/spitschan/" aria-label="LinkedIn"><i class="fa-brands fa-linkedin-in"></i></a>
+              <a href="https://github.com/GlobalLightCommons" aria-label="GitHub"><i class="fa-brands fa-github"></i></a>
+              <a href="https://www.youtube.com/channel/UCTrGLi-baRDhagV8ckBFgPQ" aria-label="YouTube"><i class="fa-brands fa-youtube"></i></a>
+              <a href="mailto:manuel.spitschan@tum.de" aria-label="Email"><i class="fa-regular fa-envelope"></i></a>
+            </div>
+          </div>
+
+          <div class="glc-footer-links">
+            <h3>Quick Links</h3>
+            <a href="https://globallightcommons.org/about/">About Us</a>
+            <a href="https://globallightcommons.org/research/">Research</a>
+            <a href="https://globallightcommons.github.io/glc-dp-viewer/registry/">GLC dataset registry</a>
+            <a href="./">Metadata builder</a>
+            <a href="https://tscnlab.github.io/LightLogR/">LightLogR</a>
+          </div>
         </div>
-        <section class="footer-affiliation">
-          <img src="assets/tscn-unit-logo.png" alt="Translational Sensory and Circadian Neuroscience Unit" />
-          <p>
-            GLC is a research initiative by the Translational Sensory &amp;
-            Circadian Neuroscience Unit at Technical University of Munich.
-          </p>
-        </section>
-        <div class="footer-bottom">
+
+        <div class="glc-footer-affiliation">
+          <img src="assets/tscn-unit-logo.png" alt="Translational Sensory &amp; Circadian Neuroscience Unit" class="glc-tscn-logo" />
+          <p>GLC is a research initiative by the Translational Sensory &amp; Circadian Neuroscience Unit at Technical University of Munich.</p>
+        </div>
+
+        <div class="glc-footer-bottom">
           <span>© 2026 GLC Research Initiative. All rights reserved.</span>
-          <a href="https://github.com/tscnlab/glc-metadata-builder/blob/main/LICENSE">MIT License</a>
+          <div class="glc-footer-legal">
+            <a href="https://www.hs.mh.tum.de/en/mgt/datenschutz/" target="_blank" rel="noopener noreferrer">Privacy Policy</a>
+            <a href="https://www.hs.mh.tum.de/en/mgt/impressum/" target="_blank" rel="noopener noreferrer">Terms of Use</a>
+          </div>
         </div>
       </div>
     </footer>

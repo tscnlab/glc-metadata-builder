@@ -105,7 +105,7 @@ assert(
   "Imported schema 2.0.0, 3.0.0, and 3.0.1 work must be upgraded into the 3.0.2 builder workflow.",
 );
 assert(
-  html.includes('href="https://tscnlab.github.io/glc-dp-viewer/validate/"'),
+  html.includes('href="https://globallightcommons.github.io/glc-dp-viewer/validate/"'),
   "The builder navigation must link to the published dataset validation guide.",
 );
 

@@ -7,7 +7,7 @@ A browser-based metadata builder for creating GLC metadata packages without hand
 Open the hosted builder here:
 
 ```text
-https://tscnlab.github.io/glc-metadata-builder/
+https://globallightcommons.github.io/glc-metadata-builder/
 ```
 
 The builder runs in the browser. Files selected by users are read locally by the browser and are not uploaded to a server.
